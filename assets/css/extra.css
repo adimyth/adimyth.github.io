@@ -1,0 +1,32 @@
+@font-face {
+	font-family: "ProximaNovaReg";
+	src: url("../fonts/proxima_ssv/ProximaNova-Regular.otf");
+	font-weight: bold;
+	font-style: bold;
+}
+
+@font-face {
+	font-family: "ProximaNovaExtraBold";
+	src: url("../fonts/ProximaNovaExtraBold.otf");
+	font-weight: bold;
+	font-style: bold;
+}
+
+@font-face {
+	font-family: "UberBold";
+	src: url("../fonts/UberMove-Bold.woff2");
+	font-weight: bold;
+	font-style: normal;
+}
+
+.highlight {
+    font-family: UberBold;
+}
+
+.proxima_reg {
+    font-family: ProximaNovaReg
+}
+
+.proxima_bold {
+    font-family: ProximaExtraBold
+}
