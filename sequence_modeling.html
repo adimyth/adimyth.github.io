@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <!-- Custom JS -->
+    <script src="assets/js/highlight.pack.js"></script>
+
+    <!-- Google Font-->
+    <link href="//fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+
+
+    <title>MultiProcessing in Python</title>
+</head>
+
+<body class="container">
+    <h2 id="sequencemodel">Sequence Model</h2>
+
+    <ul>
+        <li>1 to Many : Image captioning </li>
+
+        <li>Many to 1 : Sentiment Classification, Movie rating</li>
+
+        <li>Many to Many : Language Translation
+
+
+            <ul>
+                <li>Same Length: DNA sequence analysis</li>
+
+                <li>Different Lengths : Audio Clip to transcript (Speech recognition), NER</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3 id="whynotastandardneuralnetwork">Why not a standard neural network</h3>
+
+    <ul>
+        <li>Inconsistent input &amp; output length</li>
+
+        <li>Doesn't share features learned across different positions of text unlike a <code>convolution filter</code>
+            in convnets. </li>
+
+        <li>Too many weights</li>
+    </ul>
+
+    <h3 id="recurrentneuralnetworks">Recurrent Neural Networks</h3>
+
+    <ul>
+        <li>Fake activation as input to the first layer</li>
+
+        <li>The hidden weights are shared parameters. Weights, <em>Wax</em>, <em>Way</em> &amp; <em>Waa</em> have the
+            same value for each of the layer. </li>
+
+        <li>RNNs can only use information from inputs earlier in the sequence but not information later in the sequence
+            i.e. to predict <em>y3</em>, it doesn't use the prediction from <em>x4</em>, <em>x5</em> and so on, it can
+            only use the words <em>x1</em>, <em>x2</em> &amp; <em>x3</em> for predicting <em>y3</em>. This issue can be
+            handled by Bidirectional RNNs.</li>
+    </ul>
+
+    <p class="font-weight-bold text-center">a<sup>t</sup> = g(W<sub>aa</sub>a<sup>t-1</sup> +
+        W<sub>ax</sub>x<sup>t</sup>) + b<sub>a</sub></p>
+
+    <p class="font-weight-bold text-center">y<sup>t</sup> = g(W<sub>ya</sub>a<sup>t</sup> + b<sub>y</sub>)</p>
+
+    <h3 id="languagemodelling">Language Modelling</h3>
+
+    <ul>
+        <li>Add <em>EOS</em> tokens in your vocabulary to detect when the sentences end.</li>
+
+        <li>For unknown words add <em>UNK</em> token</li>
+
+        <li>For the sentence "Cats average 15 hours sleep a day."
+
+
+            <ul>
+                <li>x1 => zero vector</li>
+
+                <li>x2 => Cats, y<em>pred1</li>
+
+                <li>x3 => Cats average, y</em>pred2</li>
+            </ul>
+        </li>
+
+        <li>Sampling a sentence
+
+
+            <ul>
+                <li>Stop after certain a number of words is generated</li>
+
+                <li>Stop if <em>EOS</em> token is reached</li>
+            </ul>
+        </li>
+
+        <li>Character level encoding
+
+
+            <ul>
+                <li>Unknown words are not generated</li>
+
+                <li>Slower training</li>
+
+                <li>Much harder to train</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3 id="lstms">LSTMs</h3>
+
+    <p>Inputs</p>
+
+    <ul>
+        <li><em>C<sub>t</sub></em> => Cell state</li>
+
+        <li><em>h<sub>t</sub></em> => Hidden state</li>
+
+        <li><em>x<sub>t</sub></em> => Input state</li>
+    </ul>
+
+    <h4 id="gates">Gates</h4>
+
+    <p>Gates are a way to optionally let information through. They are composed out of a sigmoid neural net layer and a
+        pointwise multiplication operation.</p>
+
+    <ul>
+        <li><em>f<sub>t</sub></em> => Forget gate</li>
+
+        <li><em>i<sub>t</sub></em> => Update gate</li>
+
+        <li><em>o<sub>t</sub></em> => Output gate</li>
+    </ul>
+
+    <p><img src="http://colah.github.io/posts/2015-08-Understanding-LSTMs/img/LSTM3-gate.png"
+            alt="A typical gate in LSTM" title="Gates in LSTM" /></p>
+
+    <p><strong><em>Forget Gate</em></strong></p>
+
+    <p>Decide what information we are going to through away from the cell state. It looks at h<sub>t−1</sub> and
+        x<sub>t</sub>, and outputs a number between 0 and 1 for each number in the cell state C<sub>t−1</sub></p>
+    <p class="font-weight-bold text-center"><strong><em>f<sub>t</sub> = 𝜎(W<sub>f</sub>.[h<sub>t-1</sub>,
+                x<sub>t</sub>] + b<sub>f</sub>)</em></strong></p>
+
+    <p><strong><em>Input Gate</em></strong></p>
+
+    <p>Decide which values &amp; when to update. Also creates a new candidate C̃<sub>t</sub> that could be added to the
+        current state C<sub>t-1</sub> to update it to a new state C<sub>t</sub>.</p>
+    <p class="font-weight-bold text-center"><strong><em>i<sub>t</sub> = 𝜎(W<sub>i</sub>.[h<sub>t-1</sub>, x<sub>t</sub>] + b<sub>i</sub>)</em></strong></p>
+    <p class="font-weight-bold text-center"><strong><em>C̃<sub>t</sub> = tanh(W<sub>C</sub>.[h<sub>t-1</sub>, x<sub>t</sub>] +
+                b<sub>C</sub>)</em></strong></p>
+
+    <p><strong><em>Updating the cell state</em></strong></p>
+
+    <p>Multiply the previous step by f<sub>t</sub> forgetting things. i<sub>t</sub> is somehow representive of things
+        that we wish to update in the current state &amp; C̃<sub>t</sub> representing the updated values.</p>
+    <p class="font-weight-bold text-center"><strong><em>C<sub>t</sub> = f<sub>t</sub>*C<sub>t-1</sub> + i<sub>t</sub>C̃<sub>t</sub></em>*</strong></p>
+
+    <p><strong><em>Output Gate</em></strong>
+        The output gate decides what the next hidden state should be.</p>
+    <p class="font-weight-bold text-center"><strong><em>o<sub>t</sub> = 𝜎(W<sub>o</sub>.[h<sub>t-1</sub>, x<sub>t</sub>] + b<sub>io</sub>)</em></strong></p>
+    <p class="font-weight-bold text-center"><strong><em>h<sub>t</sub> = o<sub>t</sub>tanh(C<sub>t</sub>)</em></strong></p>
+
+    <h3 id="grus">GRUs</h3>
+
+    <p><strong><em>Simplified GRUs</em></strong></p>
+
+    <p>In GRUs the hidden state is same as the cell state. So, <em>h<sub>t</sub>=C<sub>t</sub></em>.</br></p>
+    <p class="font-weight-bold text-center"><strong><em>C̃<sub>t</sub> = tanh(W<sub>C</sub>.[h<sub>t-1</sub>, x<sub>t</sub>] +
+                b<sub>C</sub>)</em></strong></br></p>
+    <p class="font-weight-bold text-center"><strong><em>i<sub>t</sub> = 𝜎(W<sub>i</sub>.[h<sub>t-1</sub>, x<sub>t</sub>] +
+                b<sub>i</sub>)</em></strong></br></p>
+        The term on the right hand side of <em>+</em> is similar to the forget layer in LSTMs. </br>
+    <p class="font-weight-bold text-center"><strong><em>C<sub>t</sub> = i<sub>t</sub>C̃<sub>t</sub> + (1-i<sub>t</sub>)C<sub>t-1</sub></em></strong></p>
+
+    <p><img class="img-fluid" src="http://colah.github.io/posts/2015-08-Understanding-LSTMs/img/LSTM3-var-GRU.png" alt="GRUs"
+            title="GRUs" />
+        <em>r<sub>t</sub></em> is relevance gate</p>
+
+    <h3 id="samplingtechniques">Sampling Techniques</h3>
+
+    <h4 id="greedysearch">Greedy Search</h4>
+
+    <p>Pick the most likely first word according to your <strong><em>conditional language model</em></strong>
+        (<em>language translation</em>).
+        Then pick the second word that seems most likely, then pick the third word that seems most likely.
+        Aim is to maximize <strong>P(y1, y2, y3, ...., yt | X)</strong>. The above approach doesn't always work.</p>
+
+    <p>Example</p>
+
+    <pre><code>Jane is visiting Africa in September.
+        Jane is going to be visiting Africa in September.
+        </code></pre>
+
+    <p>Since, in English language, the occurrence of <em>going</em> is more than <em>visiting</em>, it is likely that
+        the 2nd sentence maximizes the above objective function, compared to the 1st sentence for the first 3 words.
+        <br />
+        Sometimes, it suffers a infinite looping of words.</p>
+
+    <h4 id="beamsearch">Beam Search</h4>
+
+    <p><strong>Step 1</strong></p>
+
+    <ul>
+        <li>Select a beam width <em>B</em> say 3</li>
+
+        <li>Find <em>B</em> values from the softmax probabilities for y1 P(y1 | x) and store them in memory. Say the
+            model chooses <em>in, Jane &amp; September</em></li>
+    </ul>
+
+    <p><strong>Step 2</strong></p>
+
+    <ul>
+        <li>For each of the above <em>B</em> choices, the Beam Search will consider what should be the second word.</li>
+
+        <li>Set <em>y1</em> to each of the above values &amp; try to find <em>y2</em> so as to maximize <strong>P(y1, y2
+                | X)</strong>. Here, we aim to find the pair (y1, y2) that is more likely, not just the second word that
+            is most likely</li>
+
+        <li><strong>P(y1, y2 | X) = P(y1 | X) P(y2 | X, y1)</strong></li>
+
+        <li>So, if <em>B=3</em> and vocabulary is of size <em>10000</em> words, then for each of <em>in, Jane &amp;
+                september</em>, we end up considering <em>10000</em> words as <em>y2</em>. So, in all we consider
+            <em>B*V</em> values i.e. <em>30000</em> pairs. Then we pick up the top <em>B</em> pairs for which the above
+            function is maximum.</li>
+    </ul>
+
+    <h4 id="refinements">Refinements</h4>
+
+    <p>Since the value <strong>P(y1, y2, ....yT | X) = P(y1 | X) P(y2 | X, y1) ...... P(yT | X, y1, y2, y3, .....,
+            yT-1)</strong> becomes very tiny number, which cannot be easily stored in the computer number till the last
+        floating point numbers, we instead take the log of LHS of the function above and try to maximize it i.e. we
+        instead maximize <strong>log P(yT | X, y1, y2, ....., yT-1)</strong>.</p>
+
+    <p>Since, the logarithmic function is monotonically increasing function, the values of <em>y</em> which maximize
+        <strong>P(y|X)</strong> should also maximize <strong>log P(y|X)</strong>.</p>
+
+    <p>Another issue with the above function is that as T keeps increasing the value of <strong>P(y1, y2, ...
+            yT|X)</strong> keeps on decreasing as the values all the terms on RHS are probabilites and have value less
+        then 1. Multiplying large number of terms with value below 1 minimizes the overall value. Hence, the
+        Language/Translation Models prefer shorter sentences.
+        This can be overcome by dividing the RHS by <em>T</em>. This is called normalization. The amount of
+        normalization can be controlled by another factor <em>α</em>. So, that the function becomes
+        <strong>1/T<sup>α</sup> log P(yT | X, y1, y2, ....., yT-1)</strong>.</p>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

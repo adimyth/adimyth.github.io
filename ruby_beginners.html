@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <!-- Custom JS -->
+    <script src="assets/js/highlight.pack.js"></script>
+
+    <!-- Google Font-->
+    <link href="//fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+
+
+    <title>MultiProcessing in Python</title>
+</head>
+
+<body class="container">
+    <h2 id="rubybeginners">Ruby Beginners</h2>
+
+    <ul>
+        <li>
+            <p>Everything in Ruby, is an object - integers, characters, texts, arrays. To know which object you are at
+                the moment, one may use the keyword self.</p>
+        </li>
+
+        <li>
+            <p>Default type of object is main.</p>
+        </li>
+
+        <li>
+            <p>A method in Ruby <strong>always returns one object</strong>.</p>
+        </li>
+
+        <li>
+            <p>Invoking a method on an object results in another object.
+                Example</p>
+        </li>
+    </ul>
+
+    <pre><code class="ruby ">
+        1.next     # 2
+    </code></pre>
+
+    <ul>
+        <li>Calling the <strong>methods</strong> method on object returns all the possible methods.
+            Example</li>
+    </ul>
+
+    <pre><code class="ruby ">
+        1.methods.sort
+    </code></pre>
+
+    <h3 id="passingarguments">Passing arguments</h3>
+
+    <pre><code class="ruby ">
+        1.between?(0, 2)
+    </code></pre>
+
+    <p>Ruby makes an exception in its syntactic rules for commonly used operators so you don't have to use periods to
+        invoke them on objects.</p>
+
+    <pre><code class="ruby ">
+        +   -   *   /   =   ==    !=    &gt;   &lt;   &gt;=    &lt;=    []
+    </code></pre>
+
+    <p>Any valid block of Ruby code you place inside <strong>#{}</strong> will be evaluated and inserted at that
+        location.</p>
+
+    <pre><code class="ruby ">
+        a = 1
+        b = 4
+        puts "The number #{a} is less than #{b}"
+    </code></pre>
+
+    <ul>
+        <li>
+            <p>Double quotes allow for escape sequences &amp; string interpolation while single quotes do not.</p>
+        </li>
+
+        <li>
+            <p>It is conventional in Ruby to have '?' at the end of the method if that method returns only boolean
+                values.</p>
+        </li>
+
+        <li>
+            <p>You can use '&lt;&lt;' just like '+', but in this case the String object 'Monk' will be appended to the
+                object represented by 'Ruby' itself. In the first case of using '+', the original string is not
+                modified, as a third string 'RubyMonk' is created.</p>
+        </li>
+    </ul>
+
+    <pre><code class="ruby ">
+        a = "Ruby"
+        puts a &lt;&lt;&lt; "Monk"        # RubyMonk
+        puts a                    # RubyMonk
+        
+        a = "Ruby"
+        puts a + "Monk"        # RubyMonk
+        puts a                # Ruby
+    </code></pre>
+
+    <p>Global Scope replace</p>
+
+    <pre><code class="ruby ">
+        "I should look into your problem when I get time".gsub('I','We')
+    </code></pre>
+
+    <ul>
+        <li>Using only sub will replace the first instance of <em>I</em> with <em>We</em></li>
+    </ul>
+
+    <h3 id="regex">RegEx</h3>
+
+    <p>In Ruby you specify a RegEx by putting it between a pair of forward slashes (/). </p>
+
+    <pre><code class="ruby ">
+        'RubyMonk'.gsub(/[aeiou]/,'1')
+    </code></pre>
+
+    <h3 id="findasubstringusingregex">Find a substring using RegEx</h3>
+
+    <p>The <em>String#match</em> method converts a pattern to a Regexp (if it isn‘t already one), and then invokes its
+        match method on the target String object. The second parameter specifies the position in the string to begin the
+        search</p>
+
+    <pre><code class="ruby ">
+        'RubyMonk Is Pretty Brilliant'.match(/ ./, 9)
+    </code></pre>
+
+    <p>False and nil equates to <strong>false</strong>. Every other object evaluates to <strong>true</strong>.</p>
+
+    <h3 id="infiniteloops">Infinite Loops</h3>
+
+    <pre><code class="ruby ">
+        loop do
+         # do something here
+        end
+    </code></pre>
+
+    <h3 id="loopingforntimes">Looping for N times</h3>
+
+    <pre><code class="ruby ">
+        N.times do
+            # do the stuff that needs to be done
+          end
+    </code></pre>
+
+    <h3 id="arrays">Arrays</h3>
+
+    <p>Creating a new array</p>
+
+    <pre><code class="ruby ">
+        []
+        Array.new
+    </code></pre>
+
+    <p>Arrays in Ruby allow you to store any kind of objects in any combination with no restrictions on type. </p>
+
+    <pre><code class="ruby ">
+        [1, 'one', 2, 'two']
+    </code></pre>
+
+    <p>Indexing</p>
+
+    <pre><code class="ruby ">
+        # extracting second element
+        [1, 'one', 2, 'two'][1]        # returns 'one'
+    </code></pre>
+
+    <p>Reverse indexing is also possible by passing in negative numbers.</p>
+
+    <pre><code class="ruby ">
+        [1, 'one', 2, 'two'][1]        # returns 'two'
+    </code></pre>
+
+    <p>Appending</p>
+
+    <pre><code class="ruby ">
+        [1, 2, 3, 4] &lt;&lt; "woot"
+        [1, 2, 3, 4].push("woot")
+    </code></pre>
+
+    <p>Transforming elements</p>
+
+    <pre><code class="ruby ">
+        [1, 2, 3, 4, 5].map { |i| i + 1 }     # gives [2, 3, 4, 5, 6]
+    </code></pre>
+
+    <p>Filtering elements</p>
+
+    <pre><code class="ruby ">
+        [1,2,3,4,5,6].select {|number| number % 2 == 0}
+    </code></pre>
+
+    <p>Deleting elements</p>
+
+    <pre><code class="ruby ">
+        a = [1, 2, 3, 4, 5, 6]
+        a.delete(5)             # returns 5
+        puts a                # [1, 2, 3, 4, 6]
+        
+        [1,2,3,4,5,6,7].delete_if{|i| i &lt; 4 } # conditional deleting
+    </code></pre>
+
+    <p><strong>Array#each</strong></p>
+
+    <p>Array#each method accepts a block to which each element of the array is passed in turn. </p>
+
+    <pre><code class="ruby ">
+        array = [1, 2, 3, 4, 5]
+        array.each do |i|
+          puts i
+        end
+    </code></pre>
+
+    <h3 id="hashesdictionary">Hashes/Dictionary</h3>
+
+    <p>If key is not present, then it runs <strong>nil</strong></p>
+
+    <pre><code class="ruby ">
+        restaurant_menu = {"Ramen" =&gt; 3, "Dal Makhani" =&gt; 4, "Tea" =&gt; 2}
+    </code></pre>
+
+    <h4 id="waysofcreatinghashes">Ways of creating Hashes</h4>
+
+    <p>Method 1<br>
+        Returns a hash containing <code>nil</code> for all the keys</p>
+
+    <pre><code class="ruby ">
+        normal = Hash.new
+        normal['random']    # returns nil
+    </code></pre>
+
+    <p>Method 2</p>
+
+    <pre><code class="ruby ">
+        usually_brown = Hash.new("brown")
+        usually_brown['random']     # returns brown
+    </code></pre>
+
+    <p>Method 3<br>
+        Takes a flat list of parameters, arranged in pairs.</p>
+
+    <pre><code class="ruby ">
+        Hash[:punch, 99, :kick, 98, :stops_bullets_with_hands, true]
+    </code></pre>
+
+    <p>Method 4<br>
+        An array containing arrays which are themselves key-value pairs.</p>
+
+    <pre><code class="ruby ">
+        Hash[ [[:punch, 0], [:kick, 72], [:stops_bullets_with_hands, false]] ]
+    </code></pre>
+
+    <h3 id="classes">Classes</h3>
+
+    <p>You can use <code>class</code> method on an object. Classes in Ruby are objects too that belong to the class
+        <strong>Class</strong>.</p>
+
+    <pre><code class="ruby ">
+        1.class        # Integer
+        1.class.class        # Class
+    </code></pre>
+
+    <h4 id="creatingaclass">Creating a class</h4>
+
+    <pre><code class="ruby ">
+        class Rectangle
+          def initialize(length, breadth)        # constructor?
+            @length = length                    # instance variable
+            @breadth = breadth                # instance variable
+          end
+        
+          def perimeter
+            2 * (@length + @breadth)
+          end
+        
+          def area
+            @length * @breadth
+          end
+        end
+        </code></pre>
+
+    <h4 id="methods">Methods</h4>
+
+    <ul>
+        <li><strong>All methods are objects.</strong></li>
+
+        <li>All objects in Ruby expose the eponymous method <strong>method</strong> that can be used to get hold of any
+            of its methods as an object.</li>
+
+        <li>If no return keyword is specified, <strong>the object created by the last line in the method is
+                automatically treated as the return value</strong>. A method must always return exactly one object.</li>
+    </ul>
+
+    <pre><code class="ruby ">
+        def do_nothing
+          1
+        end
+        
+        puts do_nothing.class        # gives FixNum
+        </code></pre>
+
+    <h4 id="splatoperator">Splat Operator</h4>
+
+    <p>The list of parameters passed to an object is, available as a list. To do this, we use what is called the splat
+        operator - which is just an asterisk (*).
+        The splat operator is used to handle methods which have a variable parameter list.</p>
+
+    <p>The splat operator works both ways - you can use it to convert arrays to parameter lists as easily as we just
+        converted a parameter list to an array.</p>
+
+    <p>Example 1</p>
+
+    <pre><code class="ruby ">
+        def add(*numbers)
+          numbers.inject(0) { |sum, number| sum + number }
+        end
+        
+        puts add(1, 2, 3)        # gives 6
+        </code></pre>
+
+    <p>Example 2</p>
+
+    <pre><code class="ruby ">
+        def add(a_number, another_number, yet_another_number)
+          a_number + another_number + yet_another_number
+        end
+        
+        puts add(*[1, 2, 3])
+        </code></pre>
+
+    <p>Example 3: Mixed and variable arguments</p>
+
+    <pre><code class="ruby ">
+        def introduction(age, gender, *names)
+          "Meet #{names.join(' ')}, who's #{age} and #{gender}"
+        end
+        
+        introduction(28, "Male", "Sidu", "Ponnappa", "Chonira")
+        </code></pre>
+
+    <h3 id="lambdafunctions">Lambda functions</h3>
+
+    <p>Use <code>{}</code> for single line lambdas and <code>do..end</code> for lambdas that are longer than a single
+        line.</p>
+
+    <p>Method 1 - blocks</p>
+
+    <pre><code class="ruby ">
+        func = lambda do |param|
+            return param+1
+        end
+        
+        func.call(3)        # returns 4
+        </code></pre>
+
+    <p>Method 2 - inline method</p>
+
+    <pre><code class="ruby ">
+        increment = lambda { |number| number+1}
+        
+        increment.call(3)    # returns 4
+        </code></pre>
+
+    <h3 id="modules">Modules</h3>
+
+    <p>Ruby modules allow you to create groups of methods that you can then include or mix into any number of classes.
+        <strong>Modules hold only methods unlike classes which hold both behaviour and state.</strong>
+        All modules in Ruby are instances of <strong>Module</strong>. </p>
+
+    <pre><code class="ruby ">
+        module Perimeter
+          def perimeter                # perimeter method
+            sides.inject(0) { |sum, side| sum + side }
+          end
+        end
+        
+        class Rectangle
+          include Perimeter            # including module in a class
+        
+          def initialize(length, breadth)
+            @length = length
+            @breadth = breadth
+          end
+        
+          def sides
+            [@length, @breadth, @length, @breadth]
+          end
+        end
+        
+        class Square
+          include Perimeter        # including module in a class
+        
+          def initialize(side)
+            @side = side
+          end
+        
+          def sides
+            [@side, @side, @side, @side]
+          end
+        end
+        
+        Rectangle.new(2, 3).perimeter        # returns 10
+        </code></pre>
+
+    <p><strong>Don't modules method accept parameters?</strong> Cause <code>def perimeter(*sides)</code> fails.</p>
+
+    <h3 id="avoidingnamespacecollisionsusingmodules">Avoiding namespace collisions using Modules</h3>
+
+    <p>Modules allows classes with conflicting names to co-exist while avoiding collisions.
+        Here, the module Perimeter includes a class called Array. Notice how it does not affect Ruby's Array class at
+        all.</p>
+
+    <pre><code class="ruby ">
+        module Perimeter
+          class Array
+            def initialize
+              @size = 400
+            end
+          end
+        end
+        
+        our_array = Perimeter::Array.new
+        ruby_array = Array.new
+        
+        p our_array.class        # Perimeter::Array
+        p ruby_array.class        # Array
+        </code></pre>
+
+    <p></p>
+
+    <h3 id="constantlookupoperator">Constant Lookup Operator</h3>
+
+    <ul>
+        <li><code>::</code> is constant lookup operator that allows lookup of class, variables or even modules inside a
+            module.</li>
+
+        <li>Nested scoping is possible </li>
+    </ul>
+
+    <pre><code class="ruby ">
+        module Dojo
+          A = 4
+          module Kata
+              B = 8
+            module Roulette
+              class ScopeIn
+                def push
+                  15
+                end
+              end
+            end
+          end
+        end
+        
+        puts "Dojo::A - #{Dojo::A}"        # prints Dojo::A - 4
+        
+        puts "Dojo::Kata::B - #{Dojo::Kata::B}"        # prints Dojo::Kata::B - 8
+        
+        puts "Dojo::Kata::Roulette::ScopeIn.new.push - #{Dojo::Kata::Roulette::ScopeIn.new.push}"
+        # prints Dojo::Kata::Roulette::ScopeIn.new.push - 15
+        </code></pre>
+
+    <p>If you prepend a constant with :: without a parent, the scoping happens on the topmost level. In this exercise,
+        change push to return 10 as per A = 10 in the topmost level, outside the Kata module.</p>
+
+    <pre><code class="ruby ">
+        module Kata
+          A = 5
+          module Dojo
+            B = 9
+            A = 7
+        
+            class ScopeIn
+              def push
+                ::A
+              end
+            end
+          end
+        end
+        
+        A = 10
+        
+        Kata::Dojo::ScopeIn.new.push     # returns 10 
+    </code></pre>
+
+    <h3 id="workingwithfiles">Working with files</h3>
+
+    <ol>
+        <li>Reading from files</li>
+    </ol>
+
+    <pre><code class="ruby ">
+        file_obj = File.open('sample.txt', 'r+')
+        file_obj.read                        # reads everything
+        file_obj.rewind                        # returns the pointer to the start of the file
+        file_obj.read(30)                    # read 30 bytes of data
+        file_obj.seek(20, IO::SEEK_SET)        # moves the file pointer to 20th byte
+        file_obj.readlines()
+    </code></pre>
+
+    <ol>
+        <li>Writing to files</li>
+    </ol>
+
+    <p>Creates a new file if there does not already exist one.</p>
+
+    <pre><code class="ruby ">
+        File.open('sample.txt', 'w') { |file| file.write("your text") }
+    </code></pre>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

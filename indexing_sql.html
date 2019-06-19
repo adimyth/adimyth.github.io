@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <!-- Custom JS -->
+    <script src="assets/js/highlight.pack.js"></script>
+
+    <!-- Google Font-->
+    <link href="//fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+
+
+    <title>MultiProcessing in Python</title>
+</head>
+
+<body class="container">
+    <h1 id="indexesinsql">Indexes in SQL</h1>
+
+    <p><a href="https://www.geeksforgeeks.org/sql-indexes/">Link 1</a></p>
+
+    <ul>
+        <li>Speeds up retrieval of rows by using a pointer. </li>
+
+        <li>Speeds up SELECT queries and WHERE clauses, but <strong>slows</strong> down data input that use UPDATE and
+            INSERT statement.</li>
+
+        <li>The mysql indexes are stored as B-tree where all the data are in leaf node.</li>
+
+        <li>In MySQL you can use EXPLAIN in front of your SELECT statement to see if your query will make use of any
+            index. This is a good start for troubleshooting performance problems. </li>
+
+        <li>If you have a three-column index on (col1, col2, col3), you have indexed search capabilities on (col1),
+            (col1, col2), and (col1, col2, col3).</li>
+
+        <li>Comparison of dissimilar columns may prevent use of indexes if values cannot be compared directly without
+            conversion. Example: 1 might equal to '0001', '1' or '01.e1'</li>
+    </ul>
+
+    <h3 id="creatingindexes">Creating Indexes</h3>
+
+    <pre><code class="sql language-sql">
+            CREATE INDEX &lt;index-name&gt; ON TABLE &lt;column-name&gt;;
+        </code></pre>
+
+    <h3 id="showingindexes">Showing Indexes</h3>
+
+    <pre><code class="sql language-sql">
+            SHOW INDEXES FROM &lt;table-name&gt;;
+        </code></pre>
+
+    <h3 id="droppingindexes">Dropping Indexes</h3>
+
+    <pre><code class="sql language-sql">
+            DROP INDEX &lt;index-name&gt;
+        </code></pre>
+
+    <h3 id="whentocreateindexes">When to create indexes</h3>
+
+    <ul>
+        <li>A column has wide range of unique values.</li>
+
+        <li>Multiple columns are used in a where or join clause.</li>
+    </ul>
+
+    <h3 id="typesofindexes">Types of Indexes</h3>
+
+    <h4 id="clusteredindexes">Clustered Indexes</h4>
+
+    <ul>
+        <li>A clustered index determines the physical order of data in a table. Hence, only one clustered index can
+            exist in a table. </li>
+
+        <li>The column on which the index is created is sorted according to some logical order. </li>
+
+        <li>In SQL Server, the primary key constraint automatically creates a clustered index on that particular column.
+        </li>
+
+        <li>Example: Id is numerically sorted, name is alphabetically ordered.</li>
+    </ul>
+
+    <h4 id="nonclusteredindexes">Non-Clustered Indexes</h4>
+
+    <ul>
+        <li>A non-clustered index is stored at one place and table data is stored in another place. Similar to a
+            textbook where the book content is located in one place and the index is located in another</li>
+
+        <li>Multiple non-clustered indexes are possible.</li>
+
+        <li>The data inside is stored as specified unlike clustered index.</li>
+
+        <li>When a query is issued against a column on which the index is created, the database will first go to the
+            index and look for the address of the corresponding row in the table. It will then go to that row address
+            and fetch other column values.</li>
+
+        <li>Slower than clustered index.</li>
+    </ul>
+
+    <h4 id="uniqueindexes">Unique Indexes</h4>
+
+    <ul>
+        <li>A unique index ensures that the values in the index key columns are unique even though the values in the
+            columns are non-unique.</li>
+    </ul>
+
+    <h4 id="fulltextindexes">Full-Text Indexes</h4>
+
+    <ul>
+        <li>Clustered &amp; Non-clustered indexes can be created on most columns except those columns configured with
+            large object data types such as text, varchar. </li>
+
+        <li>Full-text indexes allows querying against character-based data.</li>
+
+        <li>Only one full-text index is allowed per table or view. </li>
+    </ul>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+
+</body>
+
+</html>
