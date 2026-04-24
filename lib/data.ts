@@ -3,8 +3,10 @@ export const profile = {
   title: "Sr. Technical Architect & AI Engineer",
   tagline:
     "8+ years building production AI systems end-to-end, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
-  about:
-    "I bring both AI fundamentals and systems engineering depth to take models from prototype to production. I work across data pipelines, APIs, infrastructure, and model integration trade-offs, shipping AI products that scale to hundreds of concurrent users and integrate into enterprise systems where reliability, latency, and cost actually matter.",
+  about: [
+    "I bring both AI fundamentals and the Systems Engineering depth to take models from prototype to production; working across data pipelines, APIs, infrastructure, and model integration trade-offs.",
+    "I have shipped AI products that scale to hundreds of concurrent users and integrate into enterprise systems where reliability, latency, and cost actually matter.",
+  ],
   email: "mishraaditya6991@gmail.com",
   phone: "+91 9029080380",
   github: "https://github.com/adimyth",
