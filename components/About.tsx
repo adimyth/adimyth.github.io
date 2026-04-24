@@ -14,9 +14,13 @@ export default function About() {
           </div>
 
           <div>
-            <p className="text-lg text-[#444444] leading-relaxed mb-8">
-              {profile.about}
-            </p>
+            <div className="space-y-4 mb-8">
+              {profile.about.map((para, i) => (
+                <p key={i} className="text-lg text-[#444444] leading-relaxed">
+                  {para}
+                </p>
+              ))}
+            </div>
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <p
