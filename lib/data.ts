@@ -75,79 +75,50 @@ export const experience = [
       {
         name: "Pitchwiz",
         description:
-          "AI-powered conversational roleplay platform for sales training. Led end-to-end development of proctoring, script reading, multi-language support, and real-time video-based conversational AI.",
-        highlights: [
-          "Scaled to 100K+ roleplays per month and up to 500 concurrent sessions",
-          "Shaped proctoring and script reading features based on on-ground usage; users were gaming scores without them",
-          "Added multi-language support for non-English-fluent sales reps who struggled with evaluation setup",
-        ],
+          "AI-powered conversational roleplay platform & evaluation for sales training. Led end-to-end development of proctoring, script reading, multi-language support, and real-time video-based conversational AI.",
         stack: ["Pipecat", "Modal", "Daily", "LLMs", "Celery", "NLP"],
       },
       {
         name: "AI Agent Builder Framework",
         description:
           "Internal platform enabling developers, CS, and product teams to build and ship agents without reinventing infrastructure. Built on the insight that agents differ only in tools, system prompts, and context.",
-        highlights: [
-          "Built agent harness with model fallback, retries, context compaction, rate limiting, memory, and sub-agent composition",
-          "Integrated MCP support with filtered tool exposure per agent to preserve context window and reduce noise",
-          "Added safety middleware covering prompt injection detection, PII redaction, output sanitisation, and platform-specific guardrails",
-        ],
         stack: ["LangGraph", "LangSmith", "MCP", "Python", "FastAPI"],
       },
       {
         name: "Voice Agents",
         description:
           "RAG-based voice agent for sales conversations delivering factually grounded responses and executing user-driven actions in real time.",
-        highlights: [
-          "Built retrieval pipeline over product knowledge bases with vector search, grounding all responses in client-approved content",
-          "Integrated inline action execution (quote generation, poster sharing) within live conversations",
-          "Designed for real-time latency constraints across STT, LLM, and TTS with full observability",
-        ],
-        stack: ["RAG", "Vector Search", "STT", "TTS", "LLMs", "Pipecat"],
+        stack: ["RAG", "Vector Search"],
+      },
+      {
+        name: "Dynamic Presentation Engine",
+        description:
+          "Low-code tool builder system providing composable blocks that teams use to build and plug product features directly into client apps, without those features needing to exist in the core Sharpsell platform. Reduced client-specific delivery turnaround from months to days, it forms one of the foundational components that makes the platform adaptable to any client.",
+        stack: ["Low-code", "Composable Architecture", "Python", "FastAPI"],
       },
       {
         name: "Core Service",
         description:
-          "In-house authentication and authorisation service in Go, powering every user and every request across the platform.",
-        highlights: [
-          "Supports phone-OTP, email-password, SSO (SAML and OAuth2.0), and custom login flows with JWT and API key issuance",
-          "Flexible RBAC model with Super Admin, Company Admin, App User, and client-defined custom roles governing access across the platform",
-          "Engineered in Go for sub-millisecond latency, sitting on the critical path of every authenticated request",
-        ],
+          "In-house authentication and authorisation service in Go, powering every user and every request across the platform. Supports SSO, Email-password, Phone-OTP login types and RBAC for access control. Scales to hundreds of requests per second.",
         stack: ["Go", "PostgreSQL", "Redis", "RabbitMQ", "JWT", "RBAC"],
       },
       {
         name: "Real-time Analytics Platform",
         description:
           "End-to-end analytics infrastructure built from the ground up, from raw events to actionable insights in under a few minutes.",
-        highlights: [
-          "Real-time data processing pipelines using Kafka, Flink, and ClickHouse delivering insights within minutes of raw events",
-          "Designed full data sourcing, ETL pipelines, queuing, retries, observability, and scheduling",
-          "Integrated customised Apache Superset dashboards into both the customer app and admin panel",
-        ],
-        stack: ["Apache Kafka", "Apache Flink", "ClickHouse", "Kubernetes"],
+        stack: ["Apache Kafka", "Apache Flink", "ClickHouse", "Kubernetes", "Apache Superset"],
       },
       {
         name: "Sales Reels",
         description:
           "Short-form video platform solving tacit knowledge sharing in enterprises.",
-        highlights: [
-          "Built social engagement features (likes, shares, click tracking) and content performance analytics for creators",
-          "Added AI-powered content enhancements including tag generation, summarisation, and title suggestions",
-          "Built admin content moderation and approval workflow with user rewards for approved content",
-        ],
         stack: ["MediaPipe", "LLMs", "FFmpeg", "AWS Lambda", "AWS MediaConvert"],
       },
       {
         name: "Trust & Data Compliance",
         description:
           "PII compliance across multiple microservices to meet enterprise data security requirements.",
-        highlights: [
-          "Designed custom encryption-at-rest for PII fields across services, protecting data even in the event of a breach",
-          "Introduced field masking alongside encryption to preserve search, filter, and sort on sensitive fields",
-          "Used Unleash feature flags for controlled, reversible rollout across all services",
-        ],
-        stack: ["Python", "PostgreSQL", "Unleash", "Encryption"],
+        stack: ["Python", "PostgreSQL", "Unleash (feature flag)", "Encryption"],
       },
     ],
   },
@@ -163,22 +134,12 @@ export const experience = [
         name: "Life Insurance Underwriting Automation",
         description:
           "Deep learning system automating underwriting decisions for life insurance proposals, reducing manual intervention across the pipeline.",
-        highlights: [
-          "Built ETL pipeline for schema transformation from OLTP to analytics-ready format",
-          "Developed deep learning model flagging proposals for approval, rejection, or human review",
-          "Significantly reduced manual intervention and processing time across the underwriting pipeline",
-        ],
         stack: ["Python", "TensorFlow", "ETL", "Deep Learning"],
       },
       {
         name: "Underwriting Automation Module",
         description:
           "Tools and dashboards for controlling automation flow and visualising underwriting results for client teams.",
-        highlights: [
-          "Created early claims detection models integrated into the core decision pipeline",
-          "Designed decision systems combining results from Automation and Claims Detection modules",
-          "Worked directly with clients to integrate the module into their existing systems",
-        ],
         stack: ["Python", "Scikit-learn", "Dashboards", "ML"],
       },
     ],
@@ -195,22 +156,12 @@ export const experience = [
         name: "Credit Scoring Pipeline",
         description:
           "End-to-end credit scoring pipeline for a B2MicroSME lending platform, from raw OLTP data to a deployed scoring API.",
-        highlights: [
-          "Built OLTP to OLAP ETL with Airflow orchestration and tree-based ensembles (XGBoost, CatBoost)",
-          "Automated digital marketing report generation processing 130GB+ data and producing 34K+ reports in 6 hours",
-          "Deployed as a Flask API with JWT auth and maintained CI/CD via CircleCI with full pytest coverage",
-        ],
         stack: ["Python", "XGBoost", "CatBoost", "Airflow", "Flask", "Pandas"],
       },
       {
         name: "ML Across Domains",
         description:
           "Applied ML across diverse problem domains for multiple clients.",
-        highlights: [
-          "Student churn prediction from engagement signals",
-          "PAN card OCR using Mask R-CNN and Tesseract",
-          "Supreme Court judgment annotation tool covering 1950 to 2019",
-        ],
         stack: ["Python", "Mask R-CNN", "Tesseract", "NLP", "Scikit-learn"],
       },
     ],
