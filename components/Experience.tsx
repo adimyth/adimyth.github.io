@@ -48,19 +48,6 @@ export default function Experience() {
                     <p className="text-sm text-[#555555] leading-relaxed mb-3">
                       {project.description}
                     </p>
-                    <ul className="space-y-1.5 mb-4">
-                      {project.highlights.map((h, i) => (
-                        <li
-                          key={i}
-                          className="text-sm text-[#444444] flex gap-2.5 leading-relaxed"
-                        >
-                          <span className="text-[#999999] mt-1 shrink-0 text-xs">
-                            ▸
-                          </span>
-                          {h}
-                        </li>
-                      ))}
-                    </ul>
                     <div className="flex flex-wrap gap-1.5">
                       {project.stack.map((tech) => (
                         <span
