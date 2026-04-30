@@ -11,7 +11,7 @@ export default function Hero() {
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-10">
         {/* Text content */}
-        <div className="flex-1">
+        <div className="flex-1 order-2 md:order-1">
           <div className="mb-6 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460]">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -91,8 +91,8 @@ export default function Hero() {
         </div>
 
         {/* Profile photo */}
-        <div className="flex-shrink-0 flex justify-center md:justify-end">
-          <div className="relative w-56 h-56 md:w-72 md:h-72 rounded-2xl overflow-hidden border-2 border-[#d9d4cc]">
+        <div className="flex-shrink-0 order-1 md:order-2 flex justify-start md:justify-end">
+          <div className="relative w-28 h-28 md:w-72 md:h-72 rounded-2xl overflow-hidden border-2 border-[#d9d4cc]">
             <Image
               src="/aditya.png"
               alt={profile.name}

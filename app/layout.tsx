@@ -16,27 +16,26 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Aditya Mishra",
+  metadataBase: new URL("https://adimyth.github.io"),
+  title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
   description:
-    "8+ years building production AI systems end-to-end, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
+    "8+ years building AI systems that are scalable, reliable, and extensible — from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
   icons: {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "Aditya Mishra",
+    title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
     description:
-      "8+ years building production AI systems end-to-end. Open to new opportunities.",
+      "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
     url: "https://adimyth.github.io",
     siteName: "Aditya Mishra",
     type: "website",
-    images: [
-      {
-        url: "https://adimyth.github.io/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Aditya Mishra - Sr. Technical Architect & AI Engineer",
-      },
-    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
+    description:
+      "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
   },
 };
 
