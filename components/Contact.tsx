@@ -15,7 +15,7 @@ export default function Contact() {
           </h2>
           <p className="text-lg text-muted-foreground mt-4 max-w-xl leading-relaxed">
             I am currently open to new opportunities. Whether it is a full-time
-            role, a contract, or just a conversation — reach out.
+            role, a contract, or just a conversation - reach out.
           </p>
         </div>
 

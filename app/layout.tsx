@@ -34,7 +34,7 @@ export const metadata: Metadata = {
         url: "https://adimyth.github.io/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
+        alt: "Aditya Mishra - Sr. Technical Architect & AI Engineer",
       },
     ],
   },
