@@ -2,7 +2,7 @@ export const profile = {
   name: "Aditya Mishra",
   title: "Sr. Technical Architect & AI Engineer",
   tagline:
-    "8+ years building production AI systems end-to-end, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
+    "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
   about:
     "I bring both AI fundamentals and the Systems Engineering depth to take models from prototype to production, working across data pipelines, APIs, infrastructure, and model integration trade-offs.",
   email: "mishraaditya6991@gmail.com",
@@ -10,10 +10,23 @@ export const profile = {
   github: "https://github.com/adimyth",
   linkedin: "https://www.linkedin.com/in/aditya-mishra-b50623138/",
   twitter: "https://x.com/adi_myth",
-  // Google Drive export: make sure the doc is set to "Anyone with the link can view"
-  resumeUrl:
-    "https://docs.google.com/document/d/1D80Skf82RIrlK2Hzr0n4y1Mfm0AwMi1D96fB4jzdMQE/export?format=pdf",
 };
+
+// Google Drive export: make sure each doc is set to "Anyone with the link can view"
+export const resumes = [
+  {
+    role: "AI Engineer",
+    description:
+      "Focused on LLM applications, agentic systems, RAG pipelines, voice AI, and MLOps. Best for AI-first product companies and research-adjacent roles.",
+    url: "https://docs.google.com/document/d/1D80Skf82RIrlK2Hzr0n4y1Mfm0AwMi1D96fB4jzdMQE/export?format=pdf",
+  },
+  {
+    role: "Software Architect",
+    description:
+      "Focused on distributed systems, platform engineering, real-time data infrastructure, and service design. Best for engineering leadership and architecture roles.",
+    url: "https://docs.google.com/document/d/1elIzqrNWsiYgRUR1LO7hxAseqMiABf0AL6t5GV8Nbuk/export?format=pdf",
+  },
+];
 
 export const skills = [
   {
@@ -41,6 +54,7 @@ export const skills = [
       "Pipecat",
       "Deep Agents",
       "LangSmith",
+      "DeepEval",
       "Scikit-learn",
       "TensorFlow",
     ],

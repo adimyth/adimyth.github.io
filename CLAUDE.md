@@ -1,4 +1,4 @@
-# Portfolio — Project Guidelines
+# Portfolio - Project Guidelines
 
 ## About this project
 Personal portfolio website for Aditya Mishra, hosted at adimyth.github.io.
@@ -7,7 +7,7 @@ Single-page site built with Next.js 15 (App Router), Tailwind CSS v4, and shadcn
 ## Stack
 - **Framework**: Next.js 15 with App Router and TypeScript
 - **Styling**: Tailwind CSS v4 with shadcn/ui components
-- **Deployment**: GitHub Pages via static export (`output: "export"`) — CI/CD through `.github/workflows/deploy.yml`
+- **Deployment**: GitHub Pages via static export (`output: "export"`) - CI/CD through `.github/workflows/deploy.yml`
 
 ## Writing and copy style
 - **No hyphens as list bullets or em-dashes in prose.** Use plain sentences.
@@ -18,7 +18,7 @@ Single-page site built with Next.js 15 (App Router), Tailwind CSS v4, and shadcn
 - Section labels (above headings) use UPPERCASE with wide letter-spacing.
 
 ## Design preferences
-- **Dark mode by default** — the `dark` class is applied on `<html>` in `layout.tsx`.
+- **Dark mode by default** - the `dark` class is applied on `<html>` in `layout.tsx`.
 - **Accent colour**: blue-ish (`oklch(0.65 0.2 250)`) set as `--primary` in `.dark` within `globals.css`.
 - Rounded cards (`rounded-2xl`) throughout. No sharp corners.
 - Subtle borders (`border-border/50`) with hover states that brighten to `border-border`.
@@ -36,7 +36,7 @@ All copy and data lives in `lib/data.ts`. Edit that file to update any text, lin
 
 ## Component conventions
 - One component per file under `components/`.
-- All section components accept no props — they import directly from `lib/data.ts`.
+- All section components accept no props - they import directly from `lib/data.ts`.
 - Use shadcn/ui primitives (`Badge`, `Card`, `Separator`, `Button`) for UI elements. Do not reach for raw HTML where a component exists.
 - Icons come from `lucide-react`.
 

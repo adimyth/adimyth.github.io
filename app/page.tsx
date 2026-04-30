@@ -5,6 +5,7 @@ import Experience from "@/components/Experience";
 import Education from "@/components/Education";
 import Skills from "@/components/Skills";
 import Blogs from "@/components/Blogs";
+import Resume from "@/components/Resume";
 import CTA from "@/components/CTA";
 
 export default function Home() {
@@ -18,6 +19,7 @@ export default function Home() {
         <Education />
         <Skills />
         <Blogs />
+        <Resume />
         <CTA />
       </main>
     </>

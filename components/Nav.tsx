@@ -8,6 +8,7 @@ const links = [
   { label: "Education", href: "#education" },
   { label: "Skills", href: "#skills" },
   { label: "Writing", href: "#blogs" },
+  { label: "Resume", href: "#resume" },
 ];
 
 export default function Nav() {
@@ -28,7 +29,7 @@ export default function Nav() {
       }`}
     >
       <nav className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-        {/* Nav links — hidden on mobile to prevent overlap with Hire Me */}
+        {/* Nav links - hidden on mobile to prevent overlap with Hire Me */}
         <ul className="hidden md:flex items-center gap-8">
           {links.map((link) => (
             <li key={link.href}>
