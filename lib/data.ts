@@ -30,7 +30,7 @@ export const resumes = [
     role: "Software Architect",
     description:
       "Focused on distributed systems, platform engineering, real-time data infrastructure, and service design. Best for engineering leadership and architecture roles.",
-    url: "https://docs.google.com/document/d/1elIzqrNWsiYgRUR1LO7hxAseqMiABf0AL6t5GV8Nbuk/export?format=pdf",
+    url: "https://docs.google.com/document/d/1jxlTpeo3LGoKuRN1S5tG99trEU-inq6lN1YYV_AqFSI/export?format=pdf",
   },
 ];
 
