@@ -25,9 +25,9 @@ export default function Hero() {
               href={upcomingEvent.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460] hover:border-[#111111] hover:text-[#111111] transition-colors"
+              className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-xs md:text-sm text-[#6b6460] hover:border-[#111111] hover:text-[#111111] transition-colors whitespace-nowrap"
             >
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex-shrink-0 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
               </span>
@@ -67,7 +67,7 @@ export default function Hero() {
             </a>
           </div>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 pb-10 md:pb-0">
             <a
               href={profile.github}
               target="_blank"
