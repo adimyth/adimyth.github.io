@@ -1,3 +1,9 @@
+export const upcomingEvent = {
+  name: "AI Engineer Singapore",
+  dates: "May 14–16, 2026",
+  url: "https://www.ai.engineer/singapore",
+};
+
 export const profile = {
   name: "Aditya Mishra",
   title: "Sr. Technical Architect & AI Engineer",
