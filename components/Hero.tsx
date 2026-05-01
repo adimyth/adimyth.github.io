@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { profile } from "@/lib/data";
+import { profile, upcomingEvent } from "@/lib/data";
 import { Mail, Download } from "lucide-react";
 import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
 
@@ -12,12 +12,27 @@ export default function Hero() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-10">
         {/* Text content */}
         <div className="flex-1 order-2 md:order-1">
-          <div className="mb-6 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460]">
+          <div className="mb-3 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460]">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
             Open to new opportunities
+          </div>
+
+          <div className="mb-6">
+            <a
+              href={upcomingEvent.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460] hover:border-[#111111] hover:text-[#111111] transition-colors"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              Catch me at {upcomingEvent.name} · {upcomingEvent.dates}
+            </a>
           </div>
 
           <h1
