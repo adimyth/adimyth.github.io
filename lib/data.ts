@@ -14,7 +14,7 @@ export const profile = {
   email: "mishraaditya6991@gmail.com",
   phone: "+91 9029080380",
   github: "https://github.com/adimyth",
-  linkedin: "https://www.linkedin.com/in/aditya-mishra-b50623138/",
+  linkedin: "https://linkedin.com/in/adimyth",
   twitter: "https://x.com/adi_myth",
 };
 
