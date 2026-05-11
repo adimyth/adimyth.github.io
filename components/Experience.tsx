@@ -19,17 +19,17 @@ export default function Experience() {
                   href={job.url !== "#" ? job.url : undefined}
                   target={job.url !== "#" ? "_blank" : undefined}
                   rel={job.url !== "#" ? "noopener noreferrer" : undefined}
-                  className="block text-lg font-bold text-[#111111] hover:text-[#555555] transition-colors mt-3"
+                  className="block text-lg font-bold text-[#111111] hover:text-[#333333] transition-colors mt-3"
                 >
                   {job.company}
                 </a>
                 <p className="text-sm font-bold text-[#111111] mt-1">
                   {job.role}
                 </p>
-                <span className="inline-block mt-2 text-xs font-semibold text-[#444444] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full">
+                <span className="inline-block mt-2 text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full">
                   {job.period}
                 </span>
-                <p className="text-sm text-[#6b6460] mt-2">{job.location}</p>
+                <p className="text-sm text-[#4a4542] mt-2">{job.location}</p>
               </div>
 
               {/* Projects */}
@@ -45,14 +45,14 @@ export default function Experience() {
                     >
                       {project.name}
                     </h3>
-                    <p className="text-sm text-[#555555] leading-relaxed mb-3">
+                    <p className="text-sm text-[#333333] leading-relaxed mb-3">
                       {project.description}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {project.stack.map((tech) => (
                         <span
                           key={tech}
-                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f4f1ea] border border-[#d9d4cc] text-[#555555]"
+                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f4f1ea] border border-[#d9d4cc] text-[#333333]"
                         >
                           {tech}
                         </span>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Lora } from "next/font/google";
+import { Inter, Lora, Fira_Code } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
@@ -12,6 +12,12 @@ const inter = Inter({
 const lora = Lora({
   subsets: ["latin"],
   variable: "--font-lora",
+  display: "swap",
+});
+
+const firaCode = Fira_Code({
+  subsets: ["latin"],
+  variable: "--font-fira-code",
   display: "swap",
 });
 
@@ -47,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${lora.variable} scroll-smooth antialiased`}
+      className={`${inter.variable} ${lora.variable} ${firaCode.variable} scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">{children}</body>
       <Script

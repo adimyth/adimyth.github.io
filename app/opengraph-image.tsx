@@ -58,7 +58,7 @@ export default async function Image() {
             style={{
               fontSize: 13,
               fontWeight: 700,
-              color: "#6b6460",
+              color: "#4a4542",
               letterSpacing: "0.15em",
               textTransform: "uppercase",
               marginBottom: 28,
@@ -83,7 +83,7 @@ export default async function Image() {
             style={{
               fontSize: 24,
               fontWeight: 700,
-              color: "#444444",
+              color: "#333333",
               marginBottom: 24,
             }}
           >
@@ -94,7 +94,7 @@ export default async function Image() {
             style={{
               fontSize: 18,
               fontWeight: 400,
-              color: "#555555",
+              color: "#333333",
               lineHeight: 1.6,
               maxWidth: 480,
             }}
@@ -108,7 +108,7 @@ export default async function Image() {
               marginTop: "auto",
               fontSize: 15,
               fontWeight: 700,
-              color: "#6b6460",
+              color: "#4a4542",
               letterSpacing: "0.05em",
             }}
           >

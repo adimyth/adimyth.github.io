@@ -1,0 +1,84 @@
+---
+title: "Training a Deep Learning Model on Handwritten Characters using Keras"
+description: "Building a labeled dataset from handwritten character images and training a deep learning model with Keras from scratch."
+date: "2018-01-01"
+readTime: "6 min read"
+featured: true
+originalUrl: "https://medium.com/programmersclub/training-a-deep-learning-model-on-handwritten-characters-using-keras-4bad2124a6e1"
+publication: "Medium"
+---
+
+This is part one of a two-part series on training a custom model for handwritten character recognition. This part focuses on generating your own character dataset.
+
+## The Challenge with Datasets
+
+There aren't many labelled handwritten character datasets publicly available. Available options are either extracted from natural images, insufficient in quality, or require payment.
+
+The breakthrough came when I discovered a CrowdFlower dataset containing 130,000 rows with image URLs and character transcriptions.
+
+## Downloading Images
+
+The initial step involves reading a CSV file and retrieving images from URLs.
+
+**Key libraries used:**
+- Pandas — for CSV reading and dataframe navigation
+- Requests — for downloading images
+
+The code reads the CSV, iterates through image URLs, and saves downloaded images as JPG files locally.
+
+```python
+import pandas as pd
+import requests
+
+df = pd.read_csv('dataset.csv')
+
+for index, row in df.iterrows():
+    url = row['image_url']
+    response = requests.get(url)
+    with open(f'images/{index}.jpg', 'wb') as f:
+        f.write(response.content)
+```
+
+## Cropping Images
+
+The downloaded images contained unwanted sections. I identified that the unwanted section occupied only (75, 36) in the original image of size (388, 36).
+
+Using OpenCV, images were cropped to remove these extraneous elements by defining specific pixel coordinates.
+
+```python
+import cv2
+
+img = cv2.imread('image.jpg')
+cropped = img[0:36, 0:75]
+cv2.imwrite('cropped.jpg', cropped)
+```
+
+## Segmenting Characters from Images
+
+The most complex step involved isolating individual letters from word images. The approach used vertical and horizontal histograms — wherever there is a character present in the image, there would be a spike, and wherever there are blank spaces, there would be a valley.
+
+The intersection of horizontal and vertical histograms identified individual character boundaries within words.
+
+## Matching Segmentation with Transcription
+
+The final step involved matching segmented characters with transcription data while handling mismatches. The process:
+
+- Compared segmented character count with transcription length
+- Stored matching characters in corresponding directories (A–Z)
+- Created 26 directories, one per letter
+
+```python
+import os
+
+letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+for letter in letters:
+    os.makedirs(f'data/{letter}', exist_ok=True)
+```
+
+## Results
+
+The workflow successfully generated organized training data with images of each character (A–Z) extracted from all downloaded images.
+
+## Next Steps
+
+Part two covers model creation, testing on handwritten images, and transfer learning with VGG16 to achieve over 95% accuracy on test and validation data.

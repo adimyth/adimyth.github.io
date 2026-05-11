@@ -7,7 +7,7 @@ const links = [
   { label: "Experience", href: "#experience" },
   { label: "Education", href: "#education" },
   { label: "Skills", href: "#skills" },
-  { label: "Writing", href: "#blogs" },
+  { label: "Writing", href: "#writing" },
   { label: "Resume", href: "#resume" },
 ];
 
@@ -35,7 +35,7 @@ export default function Nav() {
             <li key={link.href}>
               <a
                 href={link.href}
-                className="text-sm font-bold text-[#555555] hover:text-[#111111] transition-colors"
+                className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
               >
                 {link.label}
               </a>

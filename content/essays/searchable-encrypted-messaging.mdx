@@ -1,0 +1,181 @@
+---
+title: "Searchable Encrypted Messaging"
+description: "How to build prefix-search over encrypted messages in Postgres using blind indexing and n-gram tokens — without storing any plaintext."
+date: "2026-04-10"
+readTime: "10 min read"
+featured: true
+---
+
+Most messaging products do one of two things with message content. WhatsApp and Signal go end-to-end encrypted, which means the server never sees plaintext and search has to happen on the device. Slack and the typical B2B messaging tool go the other way — plaintext in the database, searchable with Postgres full-text or Elasticsearch, and the security story is "we'll protect the database."
+
+I'm building a B2B messaging platform on top of the WhatsApp Business API. Customers — businesses talking to their end users — expect WhatsApp-style search across their entire history: type four characters, get matches, sub-second. That's a server-side feature. End-to-end encryption is off the table.
+
+But the messages are sensitive. Payment confirmations, KYC details, customer complaints. A database dump must not be readable. DPDP makes this a regulatory concern, not just a hygiene one.
+
+So the problem is the inversion of what most engineering writeups cover: I need plaintext-quality search semantics, with no plaintext anywhere on disk.
+
+## The threat model
+
+I'm not defending against an attacker who can query the live application. I'm defending against an attacker holding a static snapshot of the database — a leaked backup, compromised credentials, a developer with read access who shouldn't have it, an accidental export.
+
+The bar is: someone with full read access to the database file should learn nothing useful about any message's content. Not the words, not even the vocabulary used. If an attacker can see that the token "renewal" appears in 50,000 messages, that's already too much.
+
+That last constraint matters because it rules out a lot of naive approaches.
+
+## The obvious solutions, and why each one fails
+
+| Approach                                     | Dump-proof? | Prefix search? | Why it fails                                                         |
+| -------------------------------------------- | ----------- | -------------- | -------------------------------------------------------------------- |
+| Plaintext + Postgres GIN                     | No          | Yes            | Anyone with a dump reads everything                                  |
+| Encrypt messages, decrypt on every search    | Yes         | Yes            | Must decrypt entire table per query                                  |
+| Hash every word, store the hashes            | Yes         | No             | Exact match only; no prefix                                          |
+| Deterministic encryption of words            | Yes         | No             | Ciphertext of "ren" unrelated to ciphertext of "renewal"             |
+| Client-side encryption with on-device search | Yes         | Yes            | No server-side admin search, support workflows, or compliance access |
+
+The middle three are the interesting failures. Decrypting on every search works for a demo and falls over the moment one customer has a million messages. Hashing gives you exact-match — `SELECT WHERE word_hash = sha256('renewal')` — but a hash of "ren" has no relationship to a hash of "renewal," so prefix search dies. Deterministic encryption has the same failure mode.
+
+The shape of the problem is: I need a _structure_ over the message content that supports prefix lookups and multi-word intersection, but where the structure itself reveals nothing in a dump.
+
+## Inverted indexes, briefly
+
+Every full-text search engine — Lucene, Elasticsearch, Postgres GIN — does the same thing under the hood. Instead of scanning every document for a query word, it pre-builds a map from word to document IDs:
+
+```
+doc1: "renew my policy"
+doc2: "cancel my policy"
+doc3: "renew premium"
+
+inverted index:
+  renew    → [doc1, doc3]
+  policy   → [doc1, doc2]
+  cancel   → [doc2]
+  premium  → [doc3]
+```
+
+A search for "policy" is a single key lookup. "renew AND policy" is an intersection of two lists. This is the data structure I need. The trick is building it in a form that doesn't leak.
+
+## Blind indexing
+
+The structure is the same. The values aren't.
+
+Instead of storing the word "renew" as the key, I store `HMAC-SHA256(SIK, "renew")` — a 32-byte hash, truncated to 16 bytes, computed with a secret index key (SIK) that lives in AWS Secrets Manager.
+
+```
+token_hmac        message_id
+─────────────────────────────────
+\xc1e5a9b3...     doc1   (was "renew")
+\xc1e5a9b3...     doc3   (was "renew")
+\xe2c7b9f4...     doc1   (was "policy")
+\xe2c7b9f4...     doc2   (was "policy")
+```
+
+A database dump shows random-looking bytes. Without the SIK, an attacker cannot reverse the hashes — HMAC is one-way — and cannot even compute candidate hashes to compare against, because they don't have the key.
+
+At query time, I do the same transformation on the user's search term. `HMAC-SHA256(SIK, "renew")` produces the same bytes as it did at write time, so the lookup is a direct B-tree seek on an indexed column.
+
+The message body itself sits in a separate table, encrypted with AES-256-GCM using a different key (DEK). The search index points at message IDs; the messages live encrypted. Two tables, two keys, neither readable in a dump.
+
+```
+Incoming message
+       │
+       ▼
+Application layer  ◄── AWS Secrets Manager (DEK + SIK)
+       │
+       ├──► AES-256-GCM ciphertext ──► messages table
+       └──► HMAC-SHA256 tokens     ──► message_search_tokens table
+```
+
+## Why not one row per token with an array of message IDs
+
+The first instinct when modeling an inverted index in a relational database is to put the message IDs into an array column:
+
+```
+token_hmac       message_ids
+─────────────────────────────────────
+\xc1e5a9b3...    [doc1, doc3]
+\xe2c7b9f4...    [doc1, doc2]
+```
+
+Fewer rows. Looks tighter. It's also wrong, and the reasons are worth being specific about because they're the kind of thing you only learn by running Postgres at scale.
+
+1. **Updates become read-modify-write.** Every new message containing "renew" has to read the row, append a UUID to the array, and write it back. Postgres has no atomic "append to array" — you're holding a row lock, and concurrent inserts contend.
+
+2. **MVCC bloat.** Postgres doesn't update rows in place; it writes new versions and marks old ones dead, to be cleaned up later by `VACUUM`. A hot token rewritten on every message produces a graveyard of dead tuples. The bloat compounds.
+
+3. **Hot-row contention.** Common tokens like "renew" or "policy" or generic English words accumulate millions of message IDs. Every message containing one of them contends on the same row. This is one of the worst patterns you can have in OLTP Postgres.
+
+4. **TOAST overflow.** Arrays that grow large enough get pushed to TOAST out-of-line storage, hurting read performance.
+
+5. **Multi-word search becomes array intersection in SQL.** Slow, painful, no clean index path.
+
+One row per (token, message_id) pair gives me a B-tree where the primary key is `(token_hmac, message_id)`. Inserts are append-only and never contend. Multi-word AND becomes a bitmap index union across N seeks, then a `HAVING COUNT(DISTINCT token_hmac) = N` to enforce the AND. Postgres handles this access pattern well; it's what GIN indexes do internally.
+
+## Prefix search via n-grams
+
+Hashing whole words gives exact match. To support `LIKE 'renew%'`-style prefix search, I generate prefix n-grams at write time:
+
+```
+"renewal" → "rene", "renew", "renewa", "renewal"
+```
+
+Each prefix is hashed and stored as a separate row. At query time, the user's search term is hashed once and looked up directly.
+
+The rule:
+
+- Words shorter than 4 characters → store only the full word
+- Words 4 or longer → store prefixes of lengths 4, 5, 6, 7, 8, plus the full word
+
+The 4-character floor isn't arbitrary. Shorter prefixes are useless for search (a 2-char prefix matches everything) and explode the token table — every word would generate too many rows for the index to fit comfortably in memory. The 8-character ceiling is the same logic from the other side: longer prefixes than that just bloat the index, and users typing more than 8 characters can be matched against the stored full word.
+
+For a typical 15-word message with 10 unique tokens after stopword removal, this produces ~40 rows in the token table. At 10M messages, that's 400M rows. At 100M, 4 billion. This is the cost of the design.
+
+## What works, what doesn't
+
+| Query type             | Works? | Example                            |
+| ---------------------- | ------ | ---------------------------------- |
+| Exact word             | yes    | `policy` finds "policy"            |
+| Prefix (≥4 chars)      | yes    | `poli` finds "policy"              |
+| Multi-word AND         | yes    | `renew policy` requires both       |
+| Stemmed variants       | yes    | `renewal` matches stem `renew`     |
+| Case-insensitive       | yes    | normalized at write and query time |
+| Short prefix (&lt;4)   | no     | `pol` does not find "policy"       |
+| Substring (mid-word)   | no     | `olic` does not find "policy"      |
+| Fuzzy / typo tolerance | no     | `polcy` does not find "policy"     |
+| Phrase order           | no     | quoted phrases not preserved       |
+
+The substring and fuzzy gaps are real limitations, not bugs. Substring search would require storing every n-gram of every word, not just prefixes — the token table would explode. Fuzzy search needs edit distance, which doesn't survive hashing.
+
+For a B2B messaging product, these limits are acceptable. Users searching their message history tend to remember the start of words, not the middle. A consumer email product would need different tradeoffs.
+
+## What about performance
+
+The honest answer is that I have benchmarks for the encryption layer and not yet for the search path at scale.
+
+I measured AES-256-GCM encrypt and decrypt over 100 representative WhatsApp Business messages — short acknowledgements, longer agent responses, English, Hindi, Hinglish. On an M4 Pro with AES hardware acceleration:
+
+| Operation           | p50     | p99     | Throughput      |
+| ------------------- | ------- | ------- | --------------- |
+| Encrypt one message | 1.50 µs | 1.83 µs | 671,000 msg/s   |
+| Decrypt one message | 0.62 µs | 0.71 µs | 1,636,000 msg/s |
+
+Decrypting 20 message previews for a chat list takes 0.012 ms. A typical Postgres indexed query takes 5–15 ms. Decryption is three orders of magnitude faster than the database query it sits inside. The crypto is not the cost.
+
+What I don't have yet is search latency on a production-shaped token table — 100M+ rows, multiple tenants, real query patterns. I have strong reasons to expect it will be fast: the `token_hmac` column is the leading column of the B-tree primary key, so single-token lookups are O(log n) index seeks. Multi-word queries are bitmap index unions across N seeks plus a HAVING clause. Decryption only runs on the matched message IDs, which is a small set.
+
+The structural guarantee is that the expensive operation (decryption) only runs on what the cheap operation (hash lookup) has already narrowed down. I'll publish numbers when I have them.
+
+## The asymmetry of key rotation
+
+DEK rotation — for the encryption key on message bodies — is straightforward. Each row stores a `dek_version` column. New writes use the current DEK. Old reads pick the right DEK by version. Multiple DEK versions coexist in Secrets Manager.
+
+SIK rotation — for the search index key — is much harder. Hashes aren't reversible. There's no equivalent of "decrypt with old key." Rotating the SIK invalidates every `token_hmac` in the table, because the same word now hashes to a different value. A SIK rotation requires rebuilding the entire search index from re-decrypted messages.
+
+This is the operational price of blind indexing. The same property that makes the index dump-proof — one-way hashing — also makes it tightly coupled to the key.
+
+## What I haven't solved: Hinglish
+
+Most of my customers' end users type in Hinglish — Hindi words written in Roman script, mixed freely with English. "Kal milte hain" in a message about a meeting tomorrow. Standard tokenizers handle this badly. They don't know that "milte" and "milenge" are related, that "kal" is meaningful, that "h" by itself might be a contraction.
+
+Tokenization is the foundation of the whole pipeline. If "milenge" doesn't normalize to a stem that matches "milte," users won't find their messages. This is unsolved in my system today and the hardest open problem in the design — likely involving a transliteration-aware tokenizer or a small language model trained on Hinglish.
+
+The blind index pattern doesn't care what tokens look like, as long as they're deterministic. The challenge is producing the right tokens in the first place.

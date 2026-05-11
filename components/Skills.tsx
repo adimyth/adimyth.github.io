@@ -16,7 +16,7 @@ export default function Skills() {
             >
               <p
                 className={`text-xs font-bold uppercase tracking-widest sm:w-44 shrink-0 pt-1 ${
-                  idx === 0 ? "text-[#111111]" : "text-[#6b6460]"
+                  idx === 0 ? "text-[#111111]" : "text-[#4a4542]"
                 }`}
               >
                 {group.category}

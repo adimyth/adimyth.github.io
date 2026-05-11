@@ -1,6 +1,6 @@
 export const upcomingEvent = {
   name: "AI Engineer Singapore",
-  dates: "May 14–16, 2026",
+  dates: "May 15 - 17, 2026",
   url: "https://www.ai.engineer/singapore",
 };
 
@@ -8,7 +8,7 @@ export const profile = {
   name: "Aditya Mishra",
   title: "Sr. Technical Architect & AI Engineer",
   tagline:
-    "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
+    "8+ years building AI systems that are scalable, reliable, and extensible. From classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. I write about the trade-offs and hard lessons from production.",
   about:
     "I bring both AI fundamentals and the Systems Engineering depth to take models from prototype to production, working across data pipelines, APIs, infrastructure, and model integration trade-offs.",
   email: "mishraaditya6991@gmail.com",
@@ -195,14 +195,7 @@ export const education = {
   cgpa: "8.8 CGPA",
 };
 
-export const certifications = [
-  {
-    name: "OCPJP Oracle Certified Professional Java SE 6 Programmer",
-    issuer: "Oracle",
-    year: "2017",
-    score: "92%",
-  },
-];
+export const certifications: { name: string; issuer: string; year: string; score: string }[] = [];
 
 export const blogs = [
   {

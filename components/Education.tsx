@@ -19,11 +19,11 @@ export default function Education() {
               <h3 className="text-xl font-bold text-[#111111]">
                 {education.institution}
               </h3>
-              <p className="text-base font-semibold text-[#555555] mt-1">
+              <p className="text-base font-semibold text-[#333333] mt-1">
                 {education.degree}
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-3">
-                <span className="text-sm font-semibold text-[#444444] bg-[#e8e3d9] border border-[#d9d4cc] px-4 py-1.5 rounded-full">
+                <span className="text-sm font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-4 py-1.5 rounded-full">
                   {education.period}
                 </span>
                 <span className="text-sm font-bold bg-[#111111] text-[#f4f1ea] px-4 py-1.5 rounded-full">
@@ -46,11 +46,11 @@ export default function Education() {
                 <h3 className="text-lg font-bold text-[#111111]">
                   {cert.name}
                 </h3>
-                <p className="text-base font-semibold text-[#555555] mt-1">
+                <p className="text-base font-semibold text-[#333333] mt-1">
                   {cert.issuer}
                 </p>
                 <div className="flex flex-wrap items-center gap-3 mt-3">
-                  <span className="text-sm font-semibold text-[#444444] bg-[#e8e3d9] border border-[#d9d4cc] px-4 py-1.5 rounded-full">
+                  <span className="text-sm font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-4 py-1.5 rounded-full">
                     {cert.year}
                   </span>
                   <span className="text-sm font-bold bg-[#111111] text-[#f4f1ea] px-4 py-1.5 rounded-full">

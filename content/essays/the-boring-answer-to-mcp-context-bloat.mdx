@@ -1,0 +1,101 @@
+---
+title: "The Boring Answer to MCP Context Bloat"
+description: "How to build prefix-search over encrypted messages in Postgres using blind indexing and n-gram tokens — without storing any plaintext."
+date: "2026-04-03"
+readTime: "10 min read"
+featured: true
+---
+
+There's a narrative going around that MCP is dead.
+
+The diagnosis is real. MCP servers expose tool catalogs to agents, and the default behavior of most clients is to load every tool definition into the model's context at session start. A single MCP server with 30 tools eats through token budget before the agent does anything useful. Two or three servers and you're in the tens of thousands of tokens, all of it spent on tool _descriptions_ the agent may never use.
+
+In November 2025, Anthropic published [Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp), which proposes a fix: turn MCP tools into TypeScript files on disk, give the agent a code execution environment, and let it import only what it needs. Code execution with MCP enables agents to use context more efficiently by loading tools on demand, filtering data before it reaches the model, and executing complex logic in a single step. Cloudflare published a similar pattern under the name "Code Mode." Their example: a workflow that previously consumed 150K tokens dropped to 2K.
+
+That's a real result. It's also overkill for most agents being built today.
+
+## The shape of most agents
+
+Most production agents are not general-purpose assistants. They solve one task, or compose a small number of task-specific steps into a larger workflow.
+
+This is not a hunch. Gartner predicts that 40% of enterprise applications will be integrated with task-specific AI agents by the end of 2026, up from less than 5% in 2025. The vast majority of agents being shipped right now are not Claude-Desktop-style assistants that need access to everything. They're agents that schedule meetings, triage support tickets, summarize call transcripts, generate reports.
+
+Each of these connects to one or two MCP servers — a calendar server, a CRM server, a ticketing server. The bloat doesn't come from plugging in unrelated tool catalogs. It comes from a single relevant server exposing more tools than the agent actually needs.
+
+Picture a calendar MCP server. It might expose 15 tools: 
+* `list_events`
+* `create_event`
+* `update_event`
+* `delete_event`
+* `find_free_time`
+* `list_calendars`
+* `set_recurring`
+* `add_attendees`
+* `remove_attendees`
+* `set_reminder`
+* `get_event_details`
+
+A scheduling agent that creates new meetings probably needs three of them: `find_free_time`, `create_event`, `add_attendees`. The other twelve are dead weight in context.
+
+That's the actual context bloat for task-specific agents. And it has a much simpler fix than Code Mode.
+
+## Filtered tool exposure
+
+When I was building an agent builder framework for shipping production agents, I went with filtered tool exposure. There was an MCP server with about 30 tools, each one a thin wrapper over an internal API. When someone created a new agent, they specified which tools it needed. The framework filtered the MCP tool list before passing it to the agent.
+
+The filtering is exactly as boring as it sounds. Connect to the MCP server, get the full tool list, filter by name, pass the filtered list to the agent:
+
+```python
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+client = MultiServerMCPClient({server_name: active_connections[server_name]})
+tools = await client.get_tools()
+return _filter_tools(tools, requested_names)
+
+
+def _filter_tools(tools: list, names: list[str]) -> list:
+    allowed = set(names)
+    best: dict[str, tuple[int, object]] = {}
+    for t in tools:
+        meta = (t.metadata or {}).get("_meta") or {}
+        tool_name = meta.get("tool_name", t.name)
+        if tool_name not in allowed:
+            continue
+        version = meta.get("version", 0)
+        existing = best.get(tool_name)
+        if existing is None or version > existing[0]:
+            best[tool_name] = (version, t)
+    return [t for _, t in best.values()]
+```
+
+That's the whole thing. Most agents got 3 to 6 tools out of the 30 available. The unused tools never hit context. Token usage stayed flat regardless of how big the MCP server's catalog got. Context bloat solved.
+
+No runtime, no sandbox, no code execution, no on-demand loading. The decision about which tools the agent needs happens at agent creation time, not at session time. Once decided, it stays decided.
+
+## What you give up
+
+This pattern doesn't do everything Code Mode does.
+
+It doesn't compose multiple tool calls in code without round-tripping through the model. If your agent fetches a 50-page document, transforms it, and passes it to another tool, every step round-trips. The model sees every intermediate result. For data-heavy workflows this matters. Code Mode wins there.
+
+It also doesn't help if you genuinely don't know the tool list at design time. A general-purpose assistant like Claude Desktop, where the user might ask anything and the agent needs the entire catalog available, can't filter — it doesn't know what to filter for. Code Mode's lazy discovery is the right answer for that shape of problem.
+
+## When to reach for what
+
+The honest version of the story:
+
+- **General-purpose assistants with large tool catalogs and unpredictable requests:** Code Mode. Lazy loading and on-demand discovery earn their complexity here.
+- **Data-heavy workflows that move large blobs between tools:** Code Mode for the in-runtime composition, even if the tool set is small.
+- **Task-specific agents with a known tool list:** filter the list at design time. You're done.
+
+Most production agents — and almost all the agents people actually ship — fall into the third bucket. The first bucket gets all the attention because it's where the interesting research is happening, but it's not where most engineering effort is going.
+
+## The actual point
+
+MCP isn't dead. Anthropic reported 300M MCP SDK downloads in 2025, up from 100M at the start of the year. It's a fine protocol for exposing tool catalogs over a wire.
+
+What's dead — and was always a bad idea — is dumping every tool in the catalog into the model's context at session start. That's not MCP's fault; it's a default behavior of how clients implement MCP.
+
+The fix is at different points on the complexity curve. Code Mode is the runtime fix: build a sandbox, expose tools as code modules, let the model import what it needs at execution time. Filtered exposure is the design-time fix: decide which tools each agent needs, hand it that list, move on.
+
+Pick the one that matches your problem. If you're building a task-specific agent — and most production agents are task-specific — the design-time fix is enough. Filtering a list is not a research project.

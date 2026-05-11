@@ -1,0 +1,109 @@
+---
+title: "Searchable PII Encryption in Postgres"
+description: "How we encrypted PII so a leaked database dump reveals nothing, while prefix search, sorting, and filtering all kept working."
+date: "2026-02-10"
+readTime: "6 min read"
+featured: true
+---
+
+A few months ago, an enterprise prospect made it a hard requirement: PII in our database had to be unreadable in a dump. A leaked backup, compromised credentials, an accidental export to Slack — none of these should reveal a single **email, phone number, or external ID.**
+
+The constraint we set ourselves was harder than the requirement. The user experience had to stay identical. Prefix search across all three PII fields had to keep working. Sorting had to keep working. Filtering had to keep working. From the user's perspective, nothing should change. From a database dump's perspective, everything should.
+
+> Encrypting a column with AES is trivial. The hard part is everything that happens next.
+
+## The threat model
+
+We were not defending against an attacker who could query the live application. We were defending against an attacker holding a static snapshot — a leaked backup, compromised credentials, a developer with read access who shouldn't have it. That distinction sets a ceiling on how hard we had to work.
+
+Three specific attacks against that snapshot are worth being explicit about:
+
+- **Plaintext attack.** An attacker who somehow obtains a few real (plaintext, ciphertext) pairs and tries to derive the key. AES-256 is mathematically designed to resist this. The bigger practical defense is that plaintext PII never lives in the database at all.
+
+- **Dictionary attack.** Brute-forcing the encryption key. AES-256 has a key space of 2^256 — larger than the number of atoms in the observable universe. Not a real concern with a randomly generated key in AWS Secrets Manager. Also the PII fields were unique hence there were no common patterns to exploit.
+
+- **Reverse masking.** Recovering the original from the masked version. `adit****@gmail.com` could be Aditya, Adithya, Aditi, Adithyan, or dozens of others. Information has been permanently removed, not hidden, and there's no oracle to verify guesses against.
+
+## The obvious solutions, and why each one fails
+
+| Approach                         | Dump-proof? | Prefix search? | Why we didn't pick it                                                 |
+| -------------------------------- | ----------- | -------------- | --------------------------------------------------------------------- |
+| Plaintext                        | No          | Yes            | Fails the threat model immediately                                    |
+| Encrypt + decrypt on every query | Yes         | Yes            | Every service needs the key; multi-second latency on 1M rows          |
+| Hash the values (SHA-256)        | Yes         | No             | Exact match only; no recoverable original for display                 |
+| Deterministic encryption         | Yes         | No             | Same input → same ciphertext, but prefixes encrypt to unrelated bytes |
+
+The last two look close to what we want and are worth a moment.
+
+Hashing is fast and dump-proof, but a hash of `aditya@gmail.com` is opaque bytes — `LIKE 'adit%'` against it returns nothing. And you can't recover the email from the hash, so you'd still need to store the encrypted version for display.
+
+Deterministic encryption means the same input always produces the same ciphertext. That lets you do exact match — encrypt the search term and compare ciphertexts directly, no decryption needed. Useful for authentication. But the ciphertext of `adit` has no relationship to the ciphertext of `aditya@gmail.com` — encrypted bytes don't preserve string structure. Prefix search is impossible.
+
+That's the constraint that shaped everything else: prefix search needs the prefixes themselves to be queryable, in some readable form, with an index.
+
+## The design: encrypt the value, mask a derivative
+
+For each PII field we store two columns instead of one.
+
+```
+Original: aditya.mishra@gmail.com
+
+In the database:
+  email_enc:  \x8f3a2b1c4d... (AES-256 ciphertext)
+  email_mask: adit****@gmail.com  (indexed)
+```
+
+The `_enc` column holds an AES-256 ciphertext via `pgcrypto`. The key lives in AWS Secrets Manager and is only accessible to one service. No other service has the key.
+
+The `_mask` column holds a lossy, readable derivative. It's indexed. Queries hit it first.
+
+The masking policy:
+
+- For the sensitive portion of the field — the part before `@` in an email, the entire value for phone and external ID — the **first 4 characters** are kept and the rest replaced with asterisks
+- If the sensitive portion is shorter than 4 characters, only the first character is kept, padded with asterisks to a minimum length of 4
+
+```
+aditya.mishra@gmail.com  →  adit****@gmail.com
+anu@gmail.com            →  a***@gmail.com
+9876543210               →  9876******
+```
+
+The padding rule isn't decorative. It means an attacker can't tell a 3-character username from a 12-character one at a glance.
+
+## Why 4 characters
+
+The choice of 4 unmasked characters satisfies two unrelated constraints at once.
+
+The first is user behavior. Nobody types 5 characters into a search box and waits. Two is useless — too many false matches. Three is borderline. Four is the point where users have committed enough intent for the search to be meaningful, and they're still willing to type that much.
+
+The second is query selectivity, and this is what makes the design fast. The masked column does the heavy filtering; decryption only runs on the narrow set that survives. `email_mask LIKE 'adit%'` against a B-tree index on 1M rows returns a few hundred candidates. Then and only then Postgres decrypts those few hundred rows and applies `ILIKE 'aditya%'` to confirm the match.
+
+A 3-character prefix would match roughly an order of magnitude more rows, which means an order of magnitude more decryptions per query. The UX answer and the performance answer converged on the same number.
+
+## What the numbers look like
+
+Benchmark setup: `t4g.medium` Postgres, 1M records, `OR` across three mask columns. `EXPLAIN ANALYZE` confirmed Postgres uses a bitmap index union across the mask indexes, then decrypts only the surviving rows.
+
+| Scenario                       | Latency     | What's happening                                     |
+| ------------------------------ | ----------- | ---------------------------------------------------- |
+| Rare or typoed term (0 hits)   | ~150ms      | Mask prefix eliminates every row; no decryption runs |
+| Median across all search terms | ~445ms      | A few hundred rows decrypted and filtered            |
+| Common term, large offset      | low seconds | Thousands of rows decrypted to filter and sort       |
+
+The variance traces to one variable: how many rows the mask filter lets through. The mask is doing the work; the cipher is along for the ride.
+
+Plaintext `ILIKE` would be faster. But plaintext is visible in a dump, and full decrypt-then-scan wastes CPU on every query forever. This design pays the cost where it's cheap and skips it where it isn't.
+
+## Sort and filter
+
+Sort against the masked field works the way you'd expect — `ORDER BY email_mask` produces a stable, deterministic ordering. Users with similar prefixes appear adjacent. For paginated lists this is good enough.
+
+Filter was the interesting one. The standard implementation gives users a dropdown of all available values to pick from. Against encrypted data this falls apart — to build the dropdown you'd have to decrypt every distinct value in the table.
+
+The realization was that filter dropdowns are a UX anti-pattern at scale anyway. Nobody scrolls through hundreds of options to pick one. If there are more than 100 distinct values, the user is going to search the dropdown — which is search by another name. So we capped filter dropdowns at 100 items and added a search input for anything beyond. The filter problem became a search problem, and we'd already solved search.
+
+## Rolling it out
+
+We use Unleash for feature flags. Encryption rolled out client by client behind a flag, with both code paths — encrypted and unencrypted — fully functional throughout. Every read and every write worked in two modes: **legacy plaintext, or encrypted-plus-masked pair**. For each client, we'd backfill the new columns from the existing plaintext, validate, flip the flag, run for a few days, then drop the plaintext column. If anything went wrong, flipping back was a one-line change.
+
+The alternative — a big-bang migration across multiple tenants — would have made this a much riskier project. The feature flag turned a scary one-shot migration into a boring incremental one.

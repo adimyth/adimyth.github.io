@@ -12,7 +12,7 @@ export default function Hero() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-10">
         {/* Text content */}
         <div className="flex-1 order-2 md:order-1">
-          <div className="mb-3 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-sm text-[#6b6460]">
+          <div className="mb-3 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#6b6460] text-sm text-[#4a4542]">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -25,7 +25,7 @@ export default function Hero() {
               href={upcomingEvent.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#b8b0a2] text-xs md:text-sm text-[#6b6460] hover:border-[#111111] hover:text-[#111111] transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#6b6460] text-xs md:text-sm text-[#4a4542] hover:border-[#111111] hover:text-[#111111] transition-colors whitespace-nowrap"
             >
               <span className="relative flex-shrink-0 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
@@ -42,11 +42,11 @@ export default function Hero() {
             {profile.name}
           </h1>
 
-          <p className="text-xl md:text-2xl font-semibold text-[#444444] mb-6">
+          <p className="text-xl md:text-2xl font-semibold text-[#333333] mb-6">
             {profile.title}
           </p>
 
-          <p className="max-w-xl text-lg text-[#555555] leading-relaxed mb-10">
+          <p className="max-w-xl text-lg text-[#333333] leading-relaxed mb-10">
             {profile.tagline}
           </p>
 
@@ -72,7 +72,7 @@ export default function Hero() {
               href={profile.github}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#6b6460] hover:text-[#111111] transition-colors"
+              className="text-[#4a4542] hover:text-[#111111] transition-colors"
               aria-label="GitHub"
             >
               <GitHubIcon className="w-6 h-6" />
@@ -81,7 +81,7 @@ export default function Hero() {
               href={profile.linkedin}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#6b6460] hover:text-[#111111] transition-colors"
+              className="text-[#4a4542] hover:text-[#111111] transition-colors"
               aria-label="LinkedIn"
             >
               <LinkedInIcon className="w-6 h-6" />
@@ -90,14 +90,14 @@ export default function Hero() {
               href={profile.twitter}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#6b6460] hover:text-[#111111] transition-colors"
+              className="text-[#4a4542] hover:text-[#111111] transition-colors"
               aria-label="X"
             >
               <XIcon className="w-6 h-6" />
             </a>
             <a
               href={`mailto:${profile.email}`}
-              className="text-[#6b6460] hover:text-[#111111] transition-colors"
+              className="text-[#4a4542] hover:text-[#111111] transition-colors"
               aria-label="Email"
             >
               <Mail className="w-6 h-6" />

@@ -14,7 +14,7 @@ export default function About() {
           </div>
 
           <div>
-            <p className="text-lg text-[#444444] leading-relaxed mb-8">
+            <p className="text-lg text-[#333333] leading-relaxed mb-8">
               {profile.about}
             </p>
             <div className="grid grid-cols-2 gap-8">
@@ -25,7 +25,7 @@ export default function About() {
                 >
                   8+
                 </p>
-                <p className="text-sm text-[#6b6460] mt-1">
+                <p className="text-sm text-[#4a4542] mt-1">
                   Years of experience
                 </p>
               </div>
@@ -36,7 +36,7 @@ export default function About() {
                 >
                   3
                 </p>
-                <p className="text-sm text-[#6b6460] mt-1">
+                <p className="text-sm text-[#4a4542] mt-1">
                   Companies shipped at
                 </p>
               </div>

@@ -6,7 +6,16 @@
       "Bash(curl -s https://paulstamatiou.com)",
       "WebFetch(domain:gkoberger.com)",
       "WebFetch(domain:sharpsell.ai)",
-      "WebFetch(domain:arya.ai)"
+      "WebFetch(domain:arya.ai)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000/essays)",
+      "Bash(curl -s http://localhost:3000/essays/abstraction-trap)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/essays)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/essays/abstraction-trap)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['version']\\)\")",
+      "Bash(node *)",
+      "WebFetch(domain:medium.com)",
+      "Bash(python3 *)"
     ]
   }
 }

@@ -1,0 +1,77 @@
+---
+title: "Metrics to Evaluate Your Machine Learning Algorithm"
+description: "A practical guide to the most important evaluation metrics for ML models and when to use each one."
+date: "2019-01-01"
+readTime: "10 min read"
+featured: true
+originalUrl: "https://medium.com/data-science/metrics-to-evaluate-your-machine-learning-algorithm-f10ba6e38234"
+publication: "Medium"
+---
+
+No single metric fully evaluates model performance. Different metrics highlight different failure modes, and using several together gives you a much more honest picture of how a model is actually behaving. This article walks through the most important ones.
+
+## Classification Accuracy
+
+Classification accuracy measures the ratio of correct predictions to total predictions. It is the most intuitive metric but the most misleading on imbalanced datasets.
+
+If 98% of your samples belong to class A, a model that always predicts A will report 98% accuracy while being completely useless. Accuracy should only be your primary metric when class distribution is roughly balanced.
+
+```
+accuracy = correct predictions / total predictions
+```
+
+## Logarithmic Loss
+
+Log loss penalises confident wrong predictions more heavily than uncertain ones. It works well for multi-class problems and for tasks where you care about the calibration of probabilities, not just the final label.
+
+The metric ranges from 0 to infinity. Values closer to zero indicate better performance.
+
+```
+log loss = -1/N * Σ (y * log(p) + (1-y) * log(1-p))
+```
+
+## Confusion Matrix
+
+A confusion matrix gives you a full breakdown of where a classifier is going right and wrong. It contains four values: true positives, true negatives, false positives, and false negatives.
+
+This matrix is foundational — most other classification metrics are derived from it.
+
+## Area Under the ROC Curve (AUC)
+
+AUC measures the probability that the model ranks a randomly chosen positive example higher than a randomly chosen negative one. It plots the true positive rate against the false positive rate across varying classification thresholds.
+
+An AUC of 1.0 is a perfect classifier. An AUC of 0.5 is no better than random guessing.
+
+## F1 Score
+
+F1 is the harmonic mean of precision and recall. It is the right metric when you need to balance false positives and false negatives, particularly on imbalanced datasets.
+
+```
+precision = true positives / (true positives + false positives)
+recall    = true positives / (true positives + false negatives)
+F1        = 2 * (precision * recall) / (precision + recall)
+```
+
+F1 ranges from 0 to 1. A score of 1 means perfect precision and recall.
+
+## Mean Absolute Error (MAE)
+
+MAE is the average absolute difference between predicted and actual values. It does not indicate direction and treats all errors equally.
+
+```
+MAE = 1/N * Σ |y_actual - y_predicted|
+```
+
+## Mean Squared Error (MSE)
+
+MSE squares the errors before averaging, which amplifies large deviations. This makes it more sensitive to outliers than MAE, but it also makes gradient computation simpler for optimisation.
+
+```
+MSE = 1/N * Σ (y_actual - y_predicted)²
+```
+
+## Choosing the Right Metric
+
+The metric you optimise should match the cost structure of your problem. If false negatives are expensive (missing a disease), optimise recall. If false positives are expensive (flagging innocent transactions as fraud), optimise precision. If you need to balance both, use F1 or AUC. If your dataset is balanced and errors are roughly equal in cost, accuracy is fine.
+
+No metric is universally correct. Always define what failure looks like for your specific problem before choosing how to measure success.

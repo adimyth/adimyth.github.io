@@ -1,0 +1,76 @@
+---
+title: "Boost your Image Classification Model"
+description: "Techniques for improving deep learning image classifier accuracy: progressive resizing, transfer learning, mixup augmentation, and test-time augmentation."
+date: "2019-05-14"
+readTime: "7 min read"
+featured: true
+originalUrl: "https://medium.com/@adi_myth/boost-your-image-classifier-e1cc7a56b59c"
+publication: "Medium"
+---
+
+Image classification is considered nearly solved, yet extracting that extra 1% accuracy requires strategic techniques. I participated in the Intel Scene Classification Challenge hosted by Analytics Vidhya, testing deep learning optimization methods applicable to any image classification task.
+
+## Problem
+
+The challenge involved classifying images into 6 scene categories, working with approximately 25,000 images from natural scenes worldwide.
+
+## Progressive Resizing
+
+This technique trains CNNs sequentially on progressively larger image sizes. Starting with 64×64 images, the model's weights become initialization for training on 128×128 images, and so forth. Each larger model incorporates previous architecture layers and weights, accelerating convergence and improving efficiency.
+
+## FastAI
+
+The fastai library integrates state-of-the-art techniques tested across multiple datasets. Built on PyTorch, it provides sensible default parameters and includes:
+
+1. Cyclical Learning Rate
+2. One cycle learning
+3. Deep Learning on Structured Data
+
+## Sane Weight Initialization
+
+Rather than random initialization, I leveraged the Places365 dataset (1.8M images across 365 scene categories). Since the challenge dataset was similar, a ResNet50 model pre-trained on Places365 weights provided relevant learned features. Custom PyTorch weights were loaded into fastai's CNN Learner for optimal transfer learning.
+
+## Mixup Augmentation
+
+Mixup creates new training images through weighted linear interpolation of existing images. Two images combine as tensors. The parameter λ (lambda) is randomly sampled from a beta distribution. While the paper suggests λ=0.4, fastai's default is 0.1.
+
+## Learning Rate Tuning
+
+Learning rate selection critically impacts training. Fastai's cyclical learning rate method runs trials with exponentially increasing rates, recording loss values. The steepest loss point indicates optimal learning rate selection.
+
+The library implements Stochastic Gradient Descent with Restart (SGDR), resetting learning rates at epoch starts while applying cosine annealing decay. This mechanism helps escape local minima and saddle points.
+
+## General Adversarial Networks
+
+GANs (introduced by Ian Goodfellow in 2014) comprise generator and discriminator networks. The generator creates synthetic data while the discriminator evaluates authenticity. Fastai's Wasserstein GAN implementation augmented training data by generating additional images matching the original distribution.
+
+## Removing Confusing Images
+
+Data inspection is critical. I identified problematic images through two approaches.
+
+**Approach 1:** Using trained models, images with >0.9 prediction confidence but incorrect classification indicated mislabeling. Similarly, images with 0.5–0.6 probability ranges suggested multiple classes, warranting removal.
+
+**Approach 2:** Fastai's Image Cleaner Widget provides interactive image deletion, allowing manual dataset curation.
+
+## Test Time Augmentation
+
+This method creates multiple augmented versions of test images, passes each through the model, and averages predictions. It outperforms traditional 10-crop testing (using corner and center crops plus horizontal flips) in both speed and effectiveness.
+
+## Ensembling
+
+Combining multiple models yields better predictions when:
+
+1. Models have different architectures (ResNet50 + InceptionNet rather than ResNet50 + ResNet34)
+2. Constituent models show lower correlation
+3. Training sets vary across models
+
+I selected the maximum occurring predicted class across ensemble models, randomly choosing ties.
+
+## Results
+
+- Public Leaderboard: Rank 29 (0.962 accuracy)
+- Private Leaderboard: Rank 22 (0.9499 accuracy)
+
+## Conclusion
+
+Key takeaways: progressive resizing provides efficient starting points; thorough data visualization is essential; transfer learning should be prioritized; state-of-the-art augmentation techniques (Mixup, TTA, cyclical learning rates) yield incremental improvements; and leveraging relevant pre-trained models maximizes performance.
