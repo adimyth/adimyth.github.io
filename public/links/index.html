@@ -3,94 +3,66 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aditya — Links</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Aditya Mishra — Links</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --red:    #FF3D57;
-    --blue:   #0A66C2;
-    --yellow: #FFD600;
-    --gh:     #e6edf3;
-  }
-
   html, body {
-    height: 100%;
-    background: #0d0d0d;
+    min-height: 100%;
+    background: #f4f1ea;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #111111;
+    padding: 48px 24px;
   }
 
   .page {
     width: 100%;
-    max-width: 380px;
-    padding: 48px 24px 56px;
+    max-width: 400px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0;
   }
 
-  /* Avatar ring */
-  .avatar-wrap {
-    position: relative;
-    width: 80px;
-    height: 80px;
+  .avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #d9d4cc;
     margin-bottom: 20px;
+    flex-shrink: 0;
   }
 
-  .avatar-ring {
-    position: absolute;
-    inset: -4px;
-    border-radius: 50%;
-    background: conic-gradient(var(--red), var(--yellow), var(--blue), var(--red));
-    animation: spin 4s linear infinite;
-    z-index: 0;
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
   }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .avatar-inner {
-    position: relative;
-    z-index: 1;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: #111;
-    border: 3px solid #0d0d0d;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Syne', sans-serif;
-    font-size: 28px;
-    font-weight: 800;
-    color: #fff;
-  }
-
-  /* Name */
   .name {
-    font-family: 'Syne', sans-serif;
-    font-size: 30px;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 32px;
     font-weight: 800;
-    color: #fff;
-    letter-spacing: -0.03em;
+    color: #111111;
+    letter-spacing: -0.02em;
     line-height: 1;
+    text-align: center;
   }
-
-  .name em { font-style: normal; color: var(--yellow); }
 
   .handle {
-    margin-top: 6px;
-    font-size: 11px;
-    color: #444;
-    letter-spacing: 0.15em;
-    margin-bottom: 36px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #4f4945;
+    letter-spacing: 0.08em;
+    margin-bottom: 40px;
+    text-align: center;
   }
 
-  /* Link buttons */
   .links {
     width: 100%;
     display: flex;
@@ -101,66 +73,24 @@
   .link-btn {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
     padding: 16px 20px;
-    border-radius: 14px;
+    border-radius: 16px;
     text-decoration: none;
-    border: 1px solid transparent;
-    transition: transform 0.15s, box-shadow 0.15s;
-    position: relative;
-    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #d9d4cc;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
   }
 
-  .link-btn:active { transform: scale(0.98); }
-
-  .link-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .link-btn:hover::before { opacity: 1; }
-
-  /* Portfolio */
-  .link-btn.portfolio {
-    background: rgba(255,61,87,0.08);
-    border-color: rgba(255,61,87,0.2);
-  }
-  .link-btn.portfolio:hover {
-    box-shadow: 0 0 0 1px var(--red), 0 8px 32px rgba(255,61,87,0.2);
+  .link-btn:hover {
+    border-color: #111111;
     transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(17, 17, 17, 0.08);
   }
-  .link-btn.portfolio .icon { color: var(--red); }
-  .link-btn.portfolio .label { color: #fff; }
-  .link-btn.portfolio .sub { color: rgba(255,61,87,0.6); }
 
-  /* LinkedIn */
-  .link-btn.linkedin {
-    background: rgba(10,102,194,0.08);
-    border-color: rgba(10,102,194,0.2);
+  .link-btn:active {
+    transform: scale(0.98);
   }
-  .link-btn.linkedin:hover {
-    box-shadow: 0 0 0 1px var(--blue), 0 8px 32px rgba(10,102,194,0.2);
-    transform: translateY(-2px);
-  }
-  .link-btn.linkedin .icon { color: var(--blue); }
-  .link-btn.linkedin .label { color: #fff; }
-  .link-btn.linkedin .sub { color: rgba(10,102,194,0.6); }
-
-  /* GitHub */
-  .link-btn.github {
-    background: rgba(230,237,243,0.04);
-    border-color: rgba(230,237,243,0.08);
-  }
-  .link-btn.github:hover {
-    box-shadow: 0 0 0 1px #444, 0 8px 32px rgba(255,255,255,0.05);
-    transform: translateY(-2px);
-  }
-  .link-btn.github .icon { color: var(--gh); }
-  .link-btn.github .label { color: #fff; }
-  .link-btn.github .sub { color: #444; }
 
   .icon {
     width: 36px;
@@ -169,37 +99,42 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #4a4542;
   }
 
-  .icon svg { width: 22px; height: 22px; fill: currentColor; }
+  .icon svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
 
   .text { flex: 1; }
 
   .label {
-    font-family: 'Syne', sans-serif;
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
+    color: #111111;
     letter-spacing: -0.01em;
   }
 
   .sub {
-    font-size: 10px;
-    letter-spacing: 0.06em;
+    font-size: 12px;
+    color: #4f4945;
     margin-top: 2px;
+    letter-spacing: 0;
   }
 
   .arrow {
     font-size: 16px;
-    opacity: 0.3;
-    color: #fff;
+    color: #4a4542;
+    opacity: 0.5;
   }
 
-  /* Footer */
   .footer {
     margin-top: 40px;
-    font-size: 9px;
-    color: #222;
-    letter-spacing: 0.2em;
+    font-size: 11px;
+    color: #a09b95;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
   }
 </style>
@@ -207,17 +142,16 @@
 <body>
 <div class="page">
 
-  <div class="avatar-wrap">
-    <div class="avatar-ring"></div>
-    <div class="avatar-inner">A</div>
+  <div class="avatar">
+    <img src="/aditya.png" alt="Aditya Mishra">
   </div>
 
-  <div class="name">Aditya<em>.</em></div>
+  <div class="name">Aditya Mishra</div>
   <div class="handle">@adimyth</div>
 
   <div class="links">
 
-    <a class="link-btn portfolio" href="https://adimyth.github.io/" target="_blank" rel="noopener">
+    <a class="link-btn" href="https://adimyth.github.io/" target="_blank" rel="noopener">
       <div class="icon">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
@@ -230,7 +164,7 @@
       <div class="arrow">→</div>
     </a>
 
-    <a class="link-btn linkedin" href="https://www.linkedin.com/in/adimyth" target="_blank" rel="noopener">
+    <a class="link-btn" href="https://www.linkedin.com/in/adimyth" target="_blank" rel="noopener">
       <div class="icon">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
@@ -243,7 +177,7 @@
       <div class="arrow">→</div>
     </a>
 
-    <a class="link-btn github" href="https://github.com/adimyth" target="_blank" rel="noopener">
+    <a class="link-btn" href="https://github.com/adimyth" target="_blank" rel="noopener">
       <div class="icon">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
@@ -256,9 +190,35 @@
       <div class="arrow">→</div>
     </a>
 
+    <a class="link-btn" href="https://twitter.com/adimyth" target="_blank" rel="noopener">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.259 5.631L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </div>
+      <div class="text">
+        <div class="label">X / Twitter</div>
+        <div class="sub">twitter.com/adimyth</div>
+      </div>
+      <div class="arrow">→</div>
+    </a>
+
+    <a class="link-btn" href="mailto:mishraaditya6991@gmail.com">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+        </svg>
+      </div>
+      <div class="text">
+        <div class="label">Email</div>
+        <div class="sub">mishraaditya6991@gmail.com</div>
+      </div>
+      <div class="arrow">→</div>
+    </a>
+
   </div>
 
-  <div class="footer">adimyth · 2025</div>
+  <div class="footer">adimyth &middot; 2025</div>
 
 </div>
 </body>
