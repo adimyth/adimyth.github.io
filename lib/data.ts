@@ -24,7 +24,7 @@ export const resumes = [
     role: "AI Engineer",
     description:
       "Focused on LLM applications, agentic systems, RAG pipelines, voice AI, and MLOps. Best for AI-first product companies and research-adjacent roles.",
-    url: "https://docs.google.com/document/d/1D80Skf82RIrlK2Hzr0n4y1Mfm0AwMi1D96fB4jzdMQE/export?format=pdf",
+    url: "https://docs.google.com/document/d/1O1dJjBs6U4unnZY_bk4CMisWBNK58X-gs0CX2zdRhxk/export?format=pdf",
   },
   {
     role: "Software Architect",
