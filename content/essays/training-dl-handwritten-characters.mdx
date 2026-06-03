@@ -21,8 +21,8 @@ The breakthrough came when I discovered a CrowdFlower dataset containing 130,000
 The initial step involves reading a CSV file and retrieving images from URLs.
 
 **Key libraries used:**
-- Pandas — for CSV reading and dataframe navigation
-- Requests — for downloading images
+- Pandas, for CSV reading and dataframe navigation
+- Requests, for downloading images
 
 The code reads the CSV, iterates through image URLs, and saves downloaded images as JPG files locally.
 
@@ -55,7 +55,7 @@ cv2.imwrite('cropped.jpg', cropped)
 
 ## Segmenting Characters from Images
 
-The most complex step involved isolating individual letters from word images. The approach used vertical and horizontal histograms — wherever there is a character present in the image, there would be a spike, and wherever there are blank spaces, there would be a valley.
+The most complex step involved isolating individual letters from word images. The approach used vertical and horizontal histograms, wherever there is a character present in the image, there would be a spike, and wherever there are blank spaces, there would be a valley.
 
 The intersection of horizontal and vertical histograms identified individual character boundaries within words.
 

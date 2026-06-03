@@ -10,16 +10,7 @@ export default function Essays() {
   return (
     <section id="writing" className="py-24 px-6 border-t border-[#d9d4cc]">
       <div className="max-w-4xl mx-auto">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#4a4542] mb-3">
-          Writing
-        </p>
-        <div className="flex items-end justify-between mb-12">
-          <h2
-            style={{ fontFamily: "var(--font-lora)" }}
-            className="text-5xl md:text-6xl font-bold text-[#111111] leading-tight"
-          >
-            Essays
-          </h2>
+        <div className="flex justify-end mb-12">
           <Link
             href="/essays"
             className="hidden md:inline-flex items-center gap-1 text-sm font-semibold text-[#4a4542] hover:text-[#111111] transition-colors pb-2"

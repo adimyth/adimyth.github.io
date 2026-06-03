@@ -39,7 +39,7 @@ export default async function EssayPage({ params }: Props) {
     <main className="min-h-screen bg-[#f4f1ea] px-6 py-16">
       <div className="max-w-2xl mx-auto">
         <Link
-          href="/essays"
+          href="/"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f4945] hover:text-[#111111] transition-colors mb-12"
         >
           <ArrowLeft className="w-4 h-4" />

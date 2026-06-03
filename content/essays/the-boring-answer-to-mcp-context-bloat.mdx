@@ -1,6 +1,6 @@
 ---
 title: "The Boring Answer to MCP Context Bloat"
-description: "How to build prefix-search over encrypted messages in Postgres using blind indexing and n-gram tokens — without storing any plaintext."
+description: "How to build prefix-search over encrypted messages in Postgres using blind indexing and n-gram tokens, without storing any plaintext."
 date: "2026-04-03"
 readTime: "10 min read"
 featured: true
@@ -20,7 +20,7 @@ Most production agents are not general-purpose assistants. They solve one task, 
 
 This is not a hunch. Gartner predicts that 40% of enterprise applications will be integrated with task-specific AI agents by the end of 2026, up from less than 5% in 2025. The vast majority of agents being shipped right now are not Claude-Desktop-style assistants that need access to everything. They're agents that schedule meetings, triage support tickets, summarize call transcripts, generate reports.
 
-Each of these connects to one or two MCP servers — a calendar server, a CRM server, a ticketing server. The bloat doesn't come from plugging in unrelated tool catalogs. It comes from a single relevant server exposing more tools than the agent actually needs.
+Each of these connects to one or two MCP servers, a calendar server, a CRM server, a ticketing server. The bloat doesn't come from plugging in unrelated tool catalogs. It comes from a single relevant server exposing more tools than the agent actually needs.
 
 Picture a calendar MCP server. It might expose 15 tools: 
 * `list_events`
@@ -78,7 +78,7 @@ This pattern doesn't do everything Code Mode does.
 
 It doesn't compose multiple tool calls in code without round-tripping through the model. If your agent fetches a 50-page document, transforms it, and passes it to another tool, every step round-trips. The model sees every intermediate result. For data-heavy workflows this matters. Code Mode wins there.
 
-It also doesn't help if you genuinely don't know the tool list at design time. A general-purpose assistant like Claude Desktop, where the user might ask anything and the agent needs the entire catalog available, can't filter — it doesn't know what to filter for. Code Mode's lazy discovery is the right answer for that shape of problem.
+It also doesn't help if you genuinely don't know the tool list at design time. A general-purpose assistant like Claude Desktop, where the user might ask anything and the agent needs the entire catalog available, can't filter, it doesn't know what to filter for. Code Mode's lazy discovery is the right answer for that shape of problem.
 
 ## When to reach for what
 
@@ -88,14 +88,14 @@ The honest version of the story:
 - **Data-heavy workflows that move large blobs between tools:** Code Mode for the in-runtime composition, even if the tool set is small.
 - **Task-specific agents with a known tool list:** filter the list at design time. You're done.
 
-Most production agents — and almost all the agents people actually ship — fall into the third bucket. The first bucket gets all the attention because it's where the interesting research is happening, but it's not where most engineering effort is going.
+Most production agents, and almost all the agents people actually ship, fall into the third bucket. The first bucket gets all the attention because it's where the interesting research is happening, but it's not where most engineering effort is going.
 
 ## The actual point
 
 MCP isn't dead. Anthropic reported 300M MCP SDK downloads in 2025, up from 100M at the start of the year. It's a fine protocol for exposing tool catalogs over a wire.
 
-What's dead — and was always a bad idea — is dumping every tool in the catalog into the model's context at session start. That's not MCP's fault; it's a default behavior of how clients implement MCP.
+What's dead, and was always a bad idea, is dumping every tool in the catalog into the model's context at session start. That's not MCP's fault; it's a default behavior of how clients implement MCP.
 
 The fix is at different points on the complexity curve. Code Mode is the runtime fix: build a sandbox, expose tools as code modules, let the model import what it needs at execution time. Filtered exposure is the design-time fix: decide which tools each agent needs, hand it that list, move on.
 
-Pick the one that matches your problem. If you're building a task-specific agent — and most production agents are task-specific — the design-time fix is enough. Filtering a list is not a research project.
+Pick the one that matches your problem. If you're building a task-specific agent, and most production agents are task-specific, the design-time fix is enough. Filtering a list is not a research project.

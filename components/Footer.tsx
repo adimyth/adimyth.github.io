@@ -1,35 +1,40 @@
 import { profile } from "@/lib/data";
+import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
 
 export default function Footer() {
   return (
-    <footer className="py-8 px-6 border-t border-border">
-      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} {profile.name}. Built with Next.js
-          and shadcn/ui.
+    <footer className="px-6 py-8 border-t border-[#d9d4cc]">
+      <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <p className="text-xs text-[#6b6460]">
+          &copy; {new Date().getFullYear()} {profile.name}
         </p>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-5">
           <a
-            href={profile.github}
+            href={profile.twitter}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Twitter"
+            className="text-[#6b6460] hover:text-[#111111] transition-colors"
           >
-            GitHub
+            <XIcon className="w-4 h-4" />
           </a>
           <a
             href={profile.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="LinkedIn"
+            className="text-[#6b6460] hover:text-[#111111] transition-colors"
           >
-            LinkedIn
+            <LinkedInIcon className="w-4 h-4" />
           </a>
           <a
-            href={`mailto:${profile.email}`}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            href={profile.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+            className="text-[#6b6460] hover:text-[#111111] transition-colors"
           >
-            Email
+            <GitHubIcon className="w-4 h-4" />
           </a>
         </div>
       </div>

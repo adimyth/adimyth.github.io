@@ -100,7 +100,7 @@ export default async function Image() {
             }}
           >
             8+ years building AI systems that are scalable, reliable, and
-            extensible — from classical ML to Generative AI and Agentic AI.
+            extensible, from classical ML to Generative AI and Agentic AI.
           </div>
 
           <div

@@ -1,15 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
-
-const links = [
-  { label: "About", href: "#about" },
-  { label: "Experience", href: "#experience" },
-  { label: "Education", href: "#education" },
-  { label: "Skills", href: "#skills" },
-  { label: "Writing", href: "#writing" },
-  { label: "Resume", href: "#resume" },
-];
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -29,25 +21,30 @@ export default function Nav() {
       }`}
     >
       <nav className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-        {/* Nav links - hidden on mobile to prevent overlap with Hire Me */}
-        <ul className="hidden md:flex items-center gap-8">
-          {links.map((link) => (
-            <li key={link.href}>
-              <a
-                href={link.href}
-                className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
-              >
-                {link.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-        <a
-          href="mailto:mishraaditya6991@gmail.com"
-          className="ml-auto inline-flex items-center text-sm font-bold px-5 py-2 rounded-full bg-[#111111] text-[#f4f1ea] hover:bg-[#333333] transition-colors"
+        <Link
+          href="/"
+          className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
         >
-          Hire me
-        </a>
+          Aditya Mishra
+        </Link>
+        <ul className="flex items-center gap-8">
+          <li>
+            <Link
+              href="/essays"
+              className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
+            >
+              All Essays
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/about"
+              className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
+            >
+              About
+            </Link>
+          </li>
+        </ul>
       </nav>
     </header>
   );

@@ -23,14 +23,14 @@ const firaCode = Fira_Code({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://adimyth.github.io"),
-  title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
+  title: "Aditya Mishra · Sr. Technical Architect & AI Engineer",
   description:
-    "8+ years building AI systems that are scalable, reliable, and extensible — from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
+    "8+ years building AI systems that are scalable, reliable, and extensible, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
   icons: {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
+    title: "Aditya Mishra · Sr. Technical Architect & AI Engineer",
     description:
       "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
     url: "https://adimyth.github.io",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Aditya Mishra — Sr. Technical Architect & AI Engineer",
+    title: "Aditya Mishra · Sr. Technical Architect & AI Engineer",
     description:
       "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
   },

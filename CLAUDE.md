@@ -1,11 +1,11 @@
-# Portfolio - Project Guidelines
+# My Personal Portfolio - Project Guidelines
 
 ## About this project
-Personal portfolio website for Aditya Mishra, hosted at adimyth.github.io.
-Single-page site built with Next.js 15 (App Router), Tailwind CSS v4, and shadcn/ui (Radix variant).
+My personal portfolio website, hosted at adimyth.github.io.
+Single-page site built with Next.js 16 (App Router), Tailwind CSS v4, and shadcn/ui (Base UI, base-nova style).
 
 ## Stack
-- **Framework**: Next.js 15 with App Router and TypeScript
+- **Framework**: Next.js 16 with App Router, React 19, and TypeScript
 - **Styling**: Tailwind CSS v4 with shadcn/ui components
 - **Deployment**: GitHub Pages via static export (`output: "export"`) - CI/CD through `.github/workflows/deploy.yml`
 
@@ -31,8 +31,8 @@ All copy and data lives in `lib/data.ts`. Edit that file to update any text, lin
 ## Personal details
 - Email: mishraaditya6991@gmail.com
 - GitHub: https://github.com/adimyth
-- LinkedIn: https://linkedin.com/in/adimyth (update if URL is different)
-- Twitter: https://twitter.com/adimyth (update if handle is different)
+- LinkedIn: https://linkedin.com/in/adimyth
+- Twitter: https://twitter.com/adimyth
 
 ## Component conventions
 - One component per file under `components/`.
@@ -45,6 +45,9 @@ All copy and data lives in `lib/data.ts`. Edit that file to update any text, lin
 2. Create a component in `components/`.
 3. Import and render it in `app/page.tsx`.
 4. Add a nav link in `components/Nav.tsx`.
+
+## Git commit style
+- Do not add "Co-Authored-By: Claude" or any AI attribution in commit messages.
 
 ## Deployment notes
 - The repo must be named `adimyth.github.io` on GitHub for the site to resolve at the root domain.
