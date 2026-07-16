@@ -1,0 +1,28 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#f4f1ea",
+    "primaryTextColor": "#111111",
+    "primaryBorderColor": "#a39b90",
+    "lineColor": "#6b6460",
+    "secondaryColor": "#e2ddd3",
+    "tertiaryColor": "#f9f7f3",
+    "background": "transparent",
+    "mainBkg": "#f4f1ea",
+    "nodeBorder": "#a39b90",
+    "edgeLabelBackground": "#f4f1ea",
+    "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "fontSize": "14px"
+  },
+  "flowchart": { "curve": "basis", "padding": 12, "nodeSpacing": 28, "rankSpacing": 36 }
+}}%%
+flowchart TB
+  Meta[Meta / WhatsApp]
+  Meta -->|POST webhook| GW[API Gateway<br/>one per tenant]
+  GW --> L[Lambda<br/>verify HMAC signature]
+  L -->|invalid signature| R[401]
+  L -->|valid| Q[(SQS)]
+  Q --> P[Poller<br/>on worker box]
+  P --> H[Webhook handlers<br/>dedupe, encrypt, persist]
+  H --> PG[(Postgres)]
+  Q -.->|3 failed attempts| DLQ[(DLQ)]

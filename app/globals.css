@@ -199,9 +199,17 @@
 
 .prose-essay img {
   max-width: 100%;
-  border-radius: 0.5rem;
+  height: auto;
+  border-radius: 0.75rem;
   margin: 1.75rem auto;
   display: block;
+  background: #f9f7f3;
+  border: 1px solid #d9d4cc;
+  padding: 1rem;
+}
+
+.prose-essay img[src$=".svg"] {
+  width: 100%;
 }
 
 .prose-essay figure {

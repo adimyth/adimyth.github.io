@@ -16,7 +16,7 @@ That sounds like a solved problem until you look at how the message actually arr
 
 Our webhook ingestion is deliberately indirect. Meta doesn't talk to our application servers at all. Each tenant gets a small serverless edge: API Gateway in front of a Lambda that verifies the `x-hub-signature-256` HMAC, drops the raw payload onto an SQS queue, and returns `200` to Meta immediately.
 
-![Webhook ingestion path](/ingestion.png)
+![Webhook ingestion path](/diagrams/ingestion.svg)
 
 A long-running poller on a worker box drains the queue, and the poller is not just moving bytes into a table. It is the processor. Every payload it pulls is one of two things, and each gets real work:
 
@@ -107,7 +107,7 @@ Plus a `conversation_updated` for list-level changes. A ring of the doorbell, an
 
 ## The full loop
 
-![Complete event notification loop](/complete-flow.png)
+![Complete event notification loop](/diagrams/complete-flow.svg)
 
 On the worker side, the publish happens strictly after the commit. Publishing inside the transaction is the classic footgun: the client refetches before the commit lands, gets nothing, and the message doesn't appear until the next event.
 

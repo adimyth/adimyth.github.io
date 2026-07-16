@@ -1,0 +1,43 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#f4f1ea",
+    "primaryTextColor": "#111111",
+    "primaryBorderColor": "#a39b90",
+    "lineColor": "#6b6460",
+    "secondaryColor": "#e2ddd3",
+    "tertiaryColor": "#f9f7f3",
+    "actorBkg": "#f4f1ea",
+    "actorBorder": "#a39b90",
+    "actorTextColor": "#111111",
+    "actorLineColor": "#c4bbb0",
+    "signalColor": "#6b6460",
+    "signalTextColor": "#2f2b29",
+    "labelBoxBkgColor": "#f9f7f3",
+    "labelBoxBorderColor": "#d9d4cc",
+    "labelTextColor": "#111111",
+    "activationBkgColor": "#e2ddd3",
+    "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "fontSize": "13px"
+  },
+  "sequence": {
+    "mirrorActors": false,
+    "messageMargin": 28,
+    "boxMargin": 6,
+    "actorMargin": 40,
+    "width": 140,
+    "height": 44,
+    "noteMargin": 8
+  }
+}}%%
+sequenceDiagram
+  participant W as Poller
+  participant R as Redis
+  participant A as API
+  participant C as Flutter
+  W->>W: commit to Postgres
+  W->>R: PUBLISH user events
+  R->>A: message_arrived
+  A->>C: SSE event
+  C->>A: GET messages after_id
+  A->>C: new messages
