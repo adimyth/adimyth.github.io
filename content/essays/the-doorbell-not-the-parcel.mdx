@@ -16,17 +16,7 @@ That sounds like a solved problem until you look at how the message actually arr
 
 Our webhook ingestion is deliberately indirect. Meta doesn't talk to our application servers at all. Each tenant gets a small serverless edge: API Gateway in front of a Lambda that verifies the `x-hub-signature-256` HMAC, drops the raw payload onto an SQS queue, and returns `200` to Meta immediately.
 
-```mermaid
-flowchart LR
-  Meta[Meta / WhatsApp] -->|POST webhook| GW[API Gateway<br/>one per tenant]
-  GW --> L[Lambda<br/>verify HMAC signature]
-  L -->|invalid signature| R[401]
-  L -->|valid| Q[(SQS)]
-  Q --> P[Poller<br/>on worker box]
-  P --> H[Webhook handlers<br/>dedupe, encrypt, persist]
-  H --> PG[(Postgres)]
-  Q -.->|3 failed attempts| DLQ[(DLQ)]
-```
+![Webhook ingestion path](/ingestion.png)
 
 A long-running poller on a worker box drains the queue, and the poller is not just moving bytes into a table. It is the processor. Every payload it pulls is one of two things, and each gets real work:
 
@@ -35,9 +25,9 @@ A long-running poller on a worker box drains the queue, and the poller is not ju
 
 Only after all of that commits does the poller delete the SQS message. A failure leaves it on the queue for retry; three failures send it to the DLQ. Postgres, at the end of this line, is the single source of truth.
 
-This design buys us three properties. Meta gets acknowledged in milliseconds regardless of what our processing is doing. Bursts and retries get absorbed by the queue instead of our database. And a poison payload gets parked instead of blocking the line.
+**This design buys us three properties.** Meta gets acknowledged in milliseconds regardless of what our processing is doing. Bursts and retries get absorbed by the queue instead of our database. And a poison payload gets parked instead of blocking the line.
 
-It also creates the problem this post is about. In a normal web app, data reaches the screen because the client asked for it: request in, response out. Here, nobody asked. The new message was discovered by a background worker while the app sat idle, so there is no request/response cycle to attach it to. We need a channel where the server starts the conversation.
+> It also creates the problem this post is about. In a normal web app, data reaches the screen because the client asked for it: request in, response out. Here, nobody asked. The new message was discovered by a background worker while the app sat idle, so there is no request/response cycle to attach it to. We need a channel where the server starts the conversation.
 
 ## Why not WebSockets
 
@@ -47,7 +37,7 @@ The question to ask is: what would the client actually send upstream over the so
 
 A WebSocket buys you a bidirectional channel and charges for it whether you use both directions or not. The protocol upgrade needs special handling at every hop: Nginx `Upgrade` headers, load balancer idle timeouts. Heartbeats, reconnection, and backoff are yours to implement on both sides. And it's opaque to ordinary HTTP tooling.
 
-Server-Sent Events are just HTTP. The client opens `GET /events/stream` with the same auth headers as every other API call, and the response simply never ends. The server writes a `: ping` comment every 25 seconds to keep proxies from cutting the connection. Our client is a Flutter app, so the "client" is a streamed HTTP request plus a small reconnect loop; on the web you'd get all of that for free from the browser's built-in `EventSource`.
+Server-Sent Events are just HTTP. The client opens `GET /events/stream` with the same auth headers as every other API call, and the response simply never ends. The server writes a `: ping` comment every 25 seconds to keep proxies from cutting the connection. Our client is a Flutter app, so the "client" is a streamed HTTP request plus a small reconnect loop.
 
 Because it's plain HTTP, debugging is trivial. Point `curl -N` at the stream endpoint from a terminal and watch events scroll by live. No special client, no protocol inspector.
 
@@ -97,7 +87,7 @@ We ship three event types, all the same shape:
   "data": {
     "conversation_id": "c_9f2e",
     "message_id": "m_4471",
-    "ts": 1752641800
+    "ts": 1784177800
   }
 }
 ```
@@ -108,7 +98,7 @@ We ship three event types, all the same shape:
   "data": {
     "conversation_id": "c_9f2e",
     "message_id": "m_4471",
-    "ts": 1752641803
+    "ts": 1784177803
   }
 }
 ```
@@ -117,19 +107,7 @@ Plus a `conversation_updated` for list-level changes. A ring of the doorbell, an
 
 ## The full loop
 
-```mermaid
-sequenceDiagram
-  participant W as Poller (worker)
-  participant R as Redis pub/sub
-  participant A as API service
-  participant C as Flutter app
-  W->>W: process payload, commit to Postgres
-  W->>R: PUBLISH user:{user_id}:events
-  R->>A: message_arrived {ids}
-  A->>C: SSE event on open stream
-  C->>A: GET /conversations/{id}/messages?after_id={last}
-  A->>C: new messages, decrypted, scoped to user
-```
+![Complete event notification loop](/complete-flow.png)
 
 On the worker side, the publish happens strictly after the commit. Publishing inside the transaction is the classic footgun: the client refetches before the commit lands, gets nothing, and the message doesn't appear until the next event.
 
