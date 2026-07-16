@@ -1,0 +1,214 @@
+---
+title: "The Doorbell, Not the Parcel: Realtime Chat Without WebSockets"
+description: "How inbound WhatsApp messages reach an open chat screen using SSE, Redis pub/sub, and events that ring a doorbell instead of carrying data."
+date: "2026-07-16"
+readTime: "8 min read"
+featured: false
+---
+
+I'm building a B2B messaging platform on top of the WhatsApp Business API. The send path was solved early: user hits send, the API accepts it, a worker calls Meta, done. The receive path is where it gets interesting.
+
+When a customer replies on WhatsApp, Meta calls our webhook and the message eventually lands in Postgres. If the agent's app is in the background, a push notification covers it. But if the agent is staring at the conversation list, or sitting inside that exact conversation, the message should just appear. No pull-to-refresh, no polling, no "tap to load new messages."
+
+That sounds like a solved problem until you look at how the message actually arrives.
+
+## The ingestion path works against you
+
+Our webhook ingestion is deliberately indirect. Meta doesn't talk to our application servers at all. Each tenant gets a small serverless edge: API Gateway in front of a Lambda that verifies the `x-hub-signature-256` HMAC, drops the raw payload onto an SQS queue, and returns `200` to Meta immediately.
+
+```mermaid
+flowchart LR
+  Meta[Meta / WhatsApp] -->|POST webhook| GW[API Gateway<br/>one per tenant]
+  GW --> L[Lambda<br/>verify HMAC signature]
+  L -->|invalid signature| R[401]
+  L -->|valid| Q[(SQS)]
+  Q --> P[Poller<br/>on worker box]
+  P --> H[Webhook handlers<br/>dedupe, encrypt, persist]
+  H --> PG[(Postgres)]
+  Q -.->|3 failed attempts| DLQ[(DLQ)]
+```
+
+A long-running poller on a worker box drains the queue, and the poller is not just moving bytes into a table. It is the processor. Every payload it pulls is one of two things, and each gets real work:
+
+- **An inbound message.** The handler checks the provider message ID against an event log, so a redelivered webhook becomes a no-op. It resolves or creates the recipient and the conversation, encrypts the message body (bodies are AES-256-GCM ciphertext at rest), inserts the message row, and updates the conversation's preview and unread count.
+- **A delivery status.** The handler updates the matching message by provider ID, but only forward: sent, then delivered, then read, never backwards.
+
+Only after all of that commits does the poller delete the SQS message. A failure leaves it on the queue for retry; three failures send it to the DLQ. Postgres, at the end of this line, is the single source of truth.
+
+This design buys us three properties. Meta gets acknowledged in milliseconds regardless of what our processing is doing. Bursts and retries get absorbed by the queue instead of our database. And a poison payload gets parked instead of blocking the line.
+
+It also creates the problem this post is about. In a normal web app, data reaches the screen because the client asked for it: request in, response out. Here, nobody asked. The new message was discovered by a background worker while the app sat idle, so there is no request/response cycle to attach it to. We need a channel where the server starts the conversation.
+
+## Why not WebSockets
+
+Every realtime chat discussion starts with WebSockets, so let's deal with that first.
+
+The question to ask is: what would the client actually send upstream over the socket? In our system, nothing. Sending a message is a normal REST POST that gets queued and forwarded to Meta. Typing indicators and presence aren't in scope. Every byte of realtime traffic flows in exactly one direction, server to client.
+
+A WebSocket buys you a bidirectional channel and charges for it whether you use both directions or not. The protocol upgrade needs special handling at every hop: Nginx `Upgrade` headers, load balancer idle timeouts. Heartbeats, reconnection, and backoff are yours to implement on both sides. And it's opaque to ordinary HTTP tooling.
+
+Server-Sent Events are just HTTP. The client opens `GET /events/stream` with the same auth headers as every other API call, and the response simply never ends. The server writes a `: ping` comment every 25 seconds to keep proxies from cutting the connection. Our client is a Flutter app, so the "client" is a streamed HTTP request plus a small reconnect loop; on the web you'd get all of that for free from the browser's built-in `EventSource`.
+
+Because it's plain HTTP, debugging is trivial. Point `curl -N` at the stream endpoint from a terminal and watch events scroll by live. No special client, no protocol inspector.
+
+The honest costs: SSE is text-only and strictly one-way, and browsers on HTTP/1.1 cap you at six connections per origin (a native app has no such limit). For us, one-way is the whole point, so these costs round to zero.
+
+So the transport is settled. The more interesting decision is what to put inside the events.
+
+## Two patterns, one decision
+
+[Martin Fowler names two patterns here](https://martinfowler.com/articles/201701-event-driven.html), and the distinction does real work.
+
+**Event notification.** The event is a doorbell. It says "something happened to entity 42" and nothing else. Any consumer that cares goes back to the source of truth and fetches the current state. An order service publishes `OrderPlaced {id: 42}`; the invoicing service hears it and calls `GET /orders/42` before generating an invoice.
+
+**Event-carried state transfer.** The event is a parcel. It carries everything the consumer will ever need, so the consumer never calls back. It keeps its own copy. A customer service publishes `AddressChanged` with the full new address; the shipping service stores it locally and can print labels even when the customer service is unavailable.
+
+| Property                      | Notification                  | State transfer             |
+| ----------------------------- | ----------------------------- | -------------------------- |
+| Event size                    | Tiny (IDs + metadata)         | Full payload               |
+| Event schema over time        | Stable                        | Grows with every consumer  |
+| Extra traffic to source       | Yes, one fetch per event      | None                       |
+| Consumer survives source down | No                            | Yes                        |
+| Lost event costs              | One missed fetch, recoverable | Silent divergence          |
+| Out-of-order delivery         | Harmless                      | Needs sequencing or clocks |
+| Consistency model             | Source is always right        | Eventual, replicated       |
+
+Neither is better in general. State transfer is the right call when the consumer needs the data constantly, or must keep working while the producer is unavailable. Notification is the right call when the consumer needs occasional, fresh access to data someone else owns.
+
+## Why Event Notification wins here
+
+For inbound WhatsApp messages, four properties of our system make the choice one-sided.
+
+**1. The messages are encrypted at rest.** Message bodies live in Postgres as AES-256-GCM ciphertext (the same setup as my blind index post). A fat event means decrypting on the publish path and pushing plaintext through Redis and down the SSE stream. A thin event means content leaves the system through exactly one door: the authenticated, tenant-scoped REST API that already exists. One exit to secure instead of three.
+
+**2. Redis pub/sub is fire-and-forget.** Our fan-out bus has no persistence. If the API process is mid-restart when an event is published, that event is gone. With notification, a lost event costs one missed doorbell, and the client's reconnect logic recovers it with a normal fetch. With state transfer, a lost event means the client's copy is silently wrong until something else happens to fix it.
+
+**3. Every hop in the pipeline is at-least-once and unordered.** Meta redelivers webhooks, SQS redelivers when the poller crashes mid-batch, and statuses can arrive before the events they follow (a `read` before its `delivered`). We already absorb all of that server-side, with the idempotent event log and forward-only status transitions, so Postgres is always right. Notification lets the client inherit that guarantee for free: a duplicate poke triggers a fetch that returns the same state, and a late poke triggers a fetch that returns the newest state. With state transfer, every one of those anomalies would have to be handled a second time, on the client, with sequence numbers and conflict rules to keep its replica honest.
+
+**4. The client is a thin UI.** It's not an offline-first app with a local database. It renders what the server gives it. The main thing state transfer buys you is that the consumer keeps working when the source is down. A chat screen with no server has nothing to render anyway, so that benefit is worth nothing to us.
+
+The one concession: metadata is fine. The event carries IDs and a timestamp so the client knows what to refetch and can dedupe. That's still notification. The line not to cross is message content.
+
+We ship three event types, all the same shape:
+
+```json
+{
+  "event": "message_arrived",
+  "data": {
+    "conversation_id": "c_9f2e",
+    "message_id": "m_4471",
+    "ts": 1752641800
+  }
+}
+```
+
+```json
+{
+  "event": "message_status_updated",
+  "data": {
+    "conversation_id": "c_9f2e",
+    "message_id": "m_4471",
+    "ts": 1752641803
+  }
+}
+```
+
+Plus a `conversation_updated` for list-level changes. A ring of the doorbell, and which door.
+
+## The full loop
+
+```mermaid
+sequenceDiagram
+  participant W as Poller (worker)
+  participant R as Redis pub/sub
+  participant A as API service
+  participant C as Flutter app
+  W->>W: process payload, commit to Postgres
+  W->>R: PUBLISH user:{user_id}:events
+  R->>A: message_arrived {ids}
+  A->>C: SSE event on open stream
+  C->>A: GET /conversations/{id}/messages?after_id={last}
+  A->>C: new messages, decrypted, scoped to user
+```
+
+On the worker side, the publish happens strictly after the commit. Publishing inside the transaction is the classic footgun: the client refetches before the commit lands, gets nothing, and the message doesn't appear until the next event.
+
+```python
+db.commit()  # message is now durable and visible
+
+redis.publish(
+    f"user:{user_id}:events",
+    json.dumps({
+        "event": "message_arrived",
+        "data": {"conversation_id": conv_id, "message_id": msg_id, "ts": now},
+    }),
+)
+```
+
+On the API side, each process runs one Redis subscriber task and keeps a plain in-process dict of `user_id → set of asyncio queues`, one queue per open stream. Redis is a bus, never a socket store, so there's no sticky load balancing: every API process hears every event and delivers only to the streams it holds. The SSE endpoint itself is small:
+
+```python
+@router.get("/events/stream")
+async def stream(user=Depends(authenticate_user)):
+    q: asyncio.Queue = asyncio.Queue(maxsize=100)
+    hub.register(user.id, q)
+
+    async def gen():
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=25)
+                    yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        finally:
+            hub.unregister(user.id, q)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+```
+
+The Flutter side does three things. On `message_arrived`, call the ordinary messages API with an `after_id` cursor; if the user is inside that conversation, the bubble appears, and if they're on the list view, the row bumps and the badge increments. On `message_status_updated`, refetch the affected message and update the ticks. On any disconnect, reconnect with backoff and do the same `after_id` fetch once before trusting the stream again.
+
+That last part is the property that makes the whole design boring, in the good way: gap recovery and normal operation are literally the same code path.
+
+One more channel runs alongside all of this: push. The worker fires an FCM/APNs notification for every inbound message regardless of whether a stream is open. Sockets drop silently, apps get backgrounded mid-scroll, and the OS kills connections to save battery, so push is the delivery path we can't lose, and SSE is the fast path when the screen is on. The client dedupes by `message_id`, so a message that arrives through both renders exactly once. Foreground gets the doorbell, background gets the notification, and neither side has to know about the other.
+
+## Sharp edges worth naming
+
+A few things that will bite anyone building this, all cheap to fix up front.
+
+**Status transitions only move forward.** A `read` can reach you before its `delivered`. Rank the statuses and refuse downgrades, or the ticks flicker backwards:
+
+```sql
+UPDATE messages
+SET status = :new_status
+WHERE provider_message_id = :wamid
+  AND status_rank(:new_status) > status_rank(status);
+```
+
+**Bound the per-connection queues.** An unbounded queue on a stalled client is a slow memory leak. Cap it small; on overflow, drop everything and send a single `resync` event. The events are just IDs, so a resync costs the client one fetch:
+
+```python
+try:
+    q.put_nowait(event)
+except asyncio.QueueFull:
+    while not q.empty():
+        q.get_nowait()
+    q.put_nowait({"event": "resync", "data": {}})
+```
+
+**Respect the timeout chain.** The 25-second heartbeat must be shorter than every idle timeout above it: the server's receive timeout, Nginx's `proxy_read_timeout`, the load balancer's idle timeout. One misconfigured link and healthy connections get cut in silence.
+
+## Conclusion
+
+Two decisions, each made by looking at what the system actually does rather than what realtime systems usually use.
+
+WebSockets lost because our realtime traffic is strictly one-directional. Paying for a bidirectional protocol, with its upgrade handshakes, custom heartbeats, and hand-rolled reconnection, to use half of it made no sense. A long-lived HTTP response does the job with the auth, proxies, and debugging tools we already had.
+
+Event-carried state transfer lost because everything about our pipeline favors a single source of truth: encrypted bodies that should leave through one door, a fan-out bus that's allowed to drop events, and delivery semantics that are at-least-once and unordered at every hop. Thin events make all of that somebody else's problem, specifically Postgres's, which already solved it.
+
+The pattern has a name, event notification, and it's older than any of the infrastructure in this post. The push channel gets to be cheap, lossy, and dumb because it only ever says one thing: something changed, come look. The client has exactly one way to load data, whether it's opening the app, recovering from a dropped connection, or answering a doorbell. Fewer code paths, fewer states, fewer ways to be wrong.
