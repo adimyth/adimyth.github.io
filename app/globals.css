@@ -208,8 +208,26 @@
   padding: 1rem;
 }
 
-.prose-essay img[src$=".svg"] {
-  width: 100%;
+/* Wide diagrams keep native size; scroll instead of shrinking into the prose column. */
+.prose-essay .diagram-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1.75rem 0;
+  border: 1px solid #d9d4cc;
+  border-radius: 0.75rem;
+  background: #f9f7f3;
+}
+
+.prose-essay .diagram-scroll img {
+  width: auto;
+  max-width: none;
+  min-width: 52rem;
+  height: auto;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 1.25rem 1.5rem;
 }
 
 .prose-essay figure {

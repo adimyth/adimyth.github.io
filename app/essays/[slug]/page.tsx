@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/atom-one-dark.css";
 import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
+import EssayImage from "@/components/EssayImage";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -82,6 +83,7 @@ export default async function EssayPage({ params }: Props) {
         <div className="prose-essay">
           <MDXRemote
             source={content}
+            components={{ img: EssayImage }}
             options={{
               mdxOptions: {
                 remarkPlugins: [remarkGfm],

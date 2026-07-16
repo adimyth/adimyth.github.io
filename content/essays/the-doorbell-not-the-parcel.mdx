@@ -27,7 +27,7 @@ Only after all of that commits does the poller delete the SQS message. A failure
 
 **This design buys us three properties.** Meta gets acknowledged in milliseconds regardless of what our processing is doing. Bursts and retries get absorbed by the queue instead of our database. And a poison payload gets parked instead of blocking the line.
 
-> It also creates the problem this post is about. In a normal web app, data reaches the screen because the client asked for it: request in, response out. Here, nobody asked. The new message was discovered by a background worker while the app sat idle, so there is no request/response cycle to attach it to. We need a channel where the server starts the conversation.
+> It also creates the problem this post is about. In a normal web app, data reaches the screen because the client asked for it: request in, response out. Here, nobody asked. The new message was discovered by a background worker while the app sat idle, so there is no request/response cycle to attach it to. We need a channel the server can push on without waiting to be asked.
 
 ## Why not WebSockets
 
@@ -37,7 +37,7 @@ The question to ask is: what would the client actually send upstream over the so
 
 A WebSocket buys you a bidirectional channel and charges for it whether you use both directions or not. The protocol upgrade needs special handling at every hop: Nginx `Upgrade` headers, load balancer idle timeouts. Heartbeats, reconnection, and backoff are yours to implement on both sides. And it's opaque to ordinary HTTP tooling.
 
-Server-Sent Events are just HTTP. The client opens `GET /events/stream` with the same auth headers as every other API call, and the response simply never ends. The server writes a `: ping` comment every 25 seconds to keep proxies from cutting the connection. Our client is a Flutter app, so the "client" is a streamed HTTP request plus a small reconnect loop.
+Server-Sent Events are just HTTP. The client opens `GET /events/stream` with the same auth headers as every other API call, and the response simply never ends. The server writes a `: ping` comment every 25 seconds to keep proxies from cutting the connection. On our side the client is a streamed HTTP request plus a small reconnect loop.
 
 Because it's plain HTTP, debugging is trivial. Point `curl -N` at the stream endpoint from a terminal and watch events scroll by live. No special client, no protocol inspector.
 
@@ -149,7 +149,7 @@ async def stream(user=Depends(authenticate_user)):
     )
 ```
 
-The Flutter side does three things. On `message_arrived`, call the ordinary messages API with an `after_id` cursor; if the user is inside that conversation, the bubble appears, and if they're on the list view, the row bumps and the badge increments. On `message_status_updated`, refetch the affected message and update the ticks. On any disconnect, reconnect with backoff and do the same `after_id` fetch once before trusting the stream again.
+The client side does three things. On `message_arrived`, call the ordinary messages API with an `after_id` cursor; if the user is inside that conversation, the bubble appears, and if they're on the list view, the row bumps and the badge increments. On `message_status_updated`, refetch the affected message and update the ticks. On any disconnect, reconnect with backoff and do the same `after_id` fetch once before trusting the stream again.
 
 That last part is the property that makes the whole design boring, in the good way: gap recovery and normal operation are literally the same code path.
 

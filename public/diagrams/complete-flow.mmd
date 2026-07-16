@@ -34,7 +34,7 @@ sequenceDiagram
   participant W as Poller
   participant R as Redis
   participant A as API
-  participant C as Flutter
+  participant C as Client
   W->>W: commit to Postgres
   W->>R: PUBLISH user events
   R->>A: message_arrived
