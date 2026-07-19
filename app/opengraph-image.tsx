@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 export const dynamic = "force-static";
-export const alt = "Aditya Mishra - Sr. Technical Architect & AI Engineer";
+export const alt = "Aditya Mishra - Principal Engineer & AI Engineer";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -87,7 +87,7 @@ export default async function Image() {
               marginBottom: 24,
             }}
           >
-            Sr. Technical Architect &amp; AI Engineer
+            Principal Engineer &amp; AI Engineer
           </div>
 
           <div

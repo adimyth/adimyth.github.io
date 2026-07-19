@@ -8,7 +8,7 @@ export const upcomingEvent = {
 
 export const profile = {
   name: "Aditya Mishra",
-  title: "Sr. Technical Architect & AI Engineer",
+  title: "Principal Engineer & AI Engineer",
   tagline:
     "8+ years building AI systems that are scalable, reliable, and extensible. From classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. I write about the trade-offs and hard lessons from production.",
   about:
@@ -101,7 +101,7 @@ export const experience: ExperienceEntry[] = [
     url: "https://sharpsell.ai",
     logo: "https://enhancv.s3.amazonaws.com/company-logos-cache/sharpsell.ai.png",
     location: "Mumbai",
-    role: "Sr. Technical Architect",
+    role: "Principal Engineer",
     period: "Jan 2022 to Present",
     projects: [
       {
