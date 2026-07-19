@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Lora, Fira_Code } from "next/font/google";
 import Script from "next/script";
+import { SITE_URL } from "@/lib/data";
+import PersonJsonLd from "@/components/PersonJsonLd";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,18 +24,19 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://adimyth.github.io"),
+  metadataBase: new URL(SITE_URL),
   title: "Aditya Mishra · Sr. Technical Architect & AI Engineer",
   description:
     "8+ years building AI systems that are scalable, reliable, and extensible, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
   icons: {
     icon: "/favicon.svg",
+    apple: "/apple-icon",
   },
   openGraph: {
     title: "Aditya Mishra · Sr. Technical Architect & AI Engineer",
     description:
       "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
-    url: "https://adimyth.github.io",
+    url: SITE_URL,
     siteName: "Aditya Mishra",
     type: "website",
   },
@@ -56,6 +59,7 @@ export default function RootLayout({
       className={`${inter.variable} ${lora.variable} ${firaCode.variable} scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">{children}</body>
+      <PersonJsonLd />
       <Script
         src="https://www.googletagmanager.com/gtag/js?id=G-0E0FNTMPJX"
         strategy="afterInteractive"

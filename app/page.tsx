@@ -1,5 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import IdentityStrip from "@/components/IdentityStrip";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { getAllEssays, formatEssayDate } from "@/lib/essays";
@@ -11,6 +12,7 @@ export const metadata = {
   title: `${profile.name}`,
   description:
     "Long-form writing on AI engineering, systems thinking, and building at scale.",
+  alternates: { canonical: "/" },
 };
 
 export default function Home() {
@@ -21,6 +23,7 @@ export default function Home() {
       <Nav />
       <main className="min-h-screen bg-[#f4f1ea] px-6 pt-28 pb-16">
         <div className="max-w-2xl mx-auto">
+          <IdentityStrip />
           <div>
             {essays.map((essay) => (
               <Link

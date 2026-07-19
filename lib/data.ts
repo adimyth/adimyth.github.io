@@ -1,3 +1,5 @@
+export const SITE_URL = "https://adimyth.in";
+
 export const upcomingEvent = {
   name: "AI Engineer Singapore",
   dates: "May 15 - 17, 2026",
@@ -83,7 +85,17 @@ export const skills = [
   },
 ];
 
-export const experience = [
+type ExperienceEntry = {
+  company: string;
+  url?: string;
+  logo: string;
+  location: string;
+  role: string;
+  period: string;
+  projects: { name: string; description: string; stack: string[]; link?: string }[];
+};
+
+export const experience: ExperienceEntry[] = [
   {
     company: "Sharpsell.ai",
     url: "https://sharpsell.ai",
@@ -166,7 +178,6 @@ export const experience = [
   },
   {
     company: "difference-engine.ai",
-    url: "#",
     logo: "https://enhancv.s3.amazonaws.com/company-logos-cache/difference-engine.ai.png",
     location: "Mumbai",
     role: "Machine Learning Engineer",
@@ -194,32 +205,3 @@ export const education = {
   period: "Aug 2014 to Jun 2018",
   cgpa: "8.8 CGPA",
 };
-
-export const certifications: { name: string; issuer: string; year: string; score: string }[] = [];
-
-export const blogs = [
-  {
-    title: "Boost your Image Classification Model",
-    url: "https://medium.com/@adi_myth/boost-your-image-classifier-e1cc7a56b59c",
-    publication: "Medium",
-    date: "May 2019",
-    description:
-      "Techniques for improving deep learning image classifier accuracy: progressive resizing, transfer learning, mixup augmentation, and test-time augmentation.",
-  },
-  {
-    title: "Metrics to Evaluate Your Machine Learning Algorithm",
-    url: "https://towardsdatascience.com/metrics-to-evaluate-your-machine-learning-algorithm-f10ba6e38234",
-    publication: "Towards Data Science",
-    date: "2019",
-    description:
-      "A practical guide to the most important evaluation metrics for ML models and when to use each one.",
-  },
-  {
-    title: "Training a Deep Learning Model on Handwritten Characters using Keras",
-    url: "https://medium.com/programmersclub/training-a-deep-learning-model-on-handwritten-characters-using-keras-4bad2124a6e1",
-    publication: "ProgrammersClub",
-    date: "Jan 2018",
-    description:
-      "Building a labeled dataset from handwritten character images and training a deep learning model with Keras from scratch.",
-  },
-];

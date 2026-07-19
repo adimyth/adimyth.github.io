@@ -112,7 +112,7 @@ export default async function Image() {
               letterSpacing: "0.05em",
             }}
           >
-            adimyth.github.io
+            adimyth.in
           </div>
         </div>
 

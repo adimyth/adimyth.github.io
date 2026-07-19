@@ -11,6 +11,7 @@ import { profile } from "@/lib/data";
 export const metadata = {
   title: `About · ${profile.name}`,
   description: profile.tagline,
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

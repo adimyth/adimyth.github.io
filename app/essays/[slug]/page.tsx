@@ -18,7 +18,11 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   try {
     const { meta } = getEssay(slug);
-    return { title: meta.title, description: meta.description };
+    return {
+      title: meta.title,
+      description: meta.description,
+      alternates: { canonical: `/essays/${slug}` },
+    };
   } catch {
     return {};
   }

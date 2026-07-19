@@ -1,5 +1,6 @@
 import { experience } from "@/lib/data";
 import CompanyLogo from "@/components/CompanyLogo";
+import { ArrowUpRight } from "lucide-react";
 
 export default function Experience() {
   return (
@@ -15,14 +16,18 @@ export default function Experience() {
               {/* Company panel */}
               <div className="md:sticky md:top-24 md:self-start">
                 <CompanyLogo logo={job.logo} company={job.company} />
-                <a
-                  href={job.url !== "#" ? job.url : undefined}
-                  target={job.url !== "#" ? "_blank" : undefined}
-                  rel={job.url !== "#" ? "noopener noreferrer" : undefined}
-                  className="block text-lg font-bold text-[#111111] hover:text-[#333333] transition-colors mt-3"
-                >
-                  {job.company}
-                </a>
+                {job.url ? (
+                  <a
+                    href={job.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-lg font-bold text-[#111111] hover:text-[#333333] transition-colors mt-3"
+                  >
+                    {job.company}
+                  </a>
+                ) : (
+                  <p className="text-lg font-bold text-[#111111] mt-3">{job.company}</p>
+                )}
                 <p className="text-sm font-bold text-[#111111] mt-1">
                   {job.role}
                 </p>
@@ -48,7 +53,7 @@ export default function Experience() {
                     <p className="text-sm text-[#333333] leading-relaxed mb-3">
                       {project.description}
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {project.stack.map((tech) => (
                         <span
                           key={tech}
@@ -57,6 +62,17 @@ export default function Experience() {
                           {tech}
                         </span>
                       ))}
+                      {project.link && (
+                        <a
+                          href={project.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#4a4542] hover:text-[#111111] transition-colors ml-1"
+                        >
+                          View
+                          <ArrowUpRight className="w-3 h-3" />
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}

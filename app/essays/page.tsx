@@ -9,6 +9,7 @@ export const metadata = {
   title: `All Essays · ${profile.name}`,
   description:
     "Long-form writing on AI engineering, systems thinking, and building at scale.",
+  alternates: { canonical: "/essays" },
 };
 
 export default function AllEssaysPage() {
