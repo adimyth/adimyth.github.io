@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { loadInterFonts } from "@/lib/og";
 
 export const dynamic = "force-static";
 export const alt = "Aditya Mishra - Principal Engineer & AI Engineer";
@@ -11,14 +12,7 @@ export default async function Image() {
   const photoData = readFileSync(join(process.cwd(), "public", "aditya.png"));
   const photoSrc = `data:image/png;base64,${photoData.toString("base64")}`;
 
-  const [interRegular, interBold] = await Promise.all([
-    fetch(
-      "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff"
-    ).then((r) => r.arrayBuffer()),
-    fetch(
-      "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-700-normal.woff"
-    ).then((r) => r.arrayBuffer()),
-  ]);
+  const { regular: interRegular, bold: interBold } = await loadInterFonts();
 
   return new ImageResponse(
     (

@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/atom-one-dark.css";
 import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
 import EssayImage from "@/components/EssayImage";
+import ArticleJsonLd from "@/components/ArticleJsonLd";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -42,6 +43,12 @@ export default async function EssayPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-[#f4f1ea] px-6 py-16">
+      <ArticleJsonLd
+        slug={meta.slug}
+        title={meta.title}
+        description={meta.description}
+        date={meta.date}
+      />
       <div className="max-w-2xl mx-auto">
         <Link
           href="/"
