@@ -28,6 +28,13 @@ export default function AllEssaysPage() {
             Back
           </Link>
 
+          <h1
+            style={{ fontFamily: "var(--font-lora)" }}
+            className="text-3xl font-bold text-[#111111] mb-10"
+          >
+            All Essays
+          </h1>
+
           <div>
             {essays.map((essay) => (
               <Link
