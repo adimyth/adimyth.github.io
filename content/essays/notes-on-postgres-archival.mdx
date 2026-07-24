@@ -1,0 +1,137 @@
+---
+title: "Notes on Data Archival: Keeping Postgres Lean Without Downtime"
+description: "Freeing up an RDS running out of disk space by archiving 8M rows to S3, and the three gotchas that stood in the way: concurrent index creation, hourly batching, and VACUUM FULL."
+date: "2024-06-21"
+readTime: "6 min read"
+featured: false
+---
+
+## TL;DR
+
+A multi-tenant Postgres RDS was about to run out of disk because one client's `analytics.events` table had grown huge, leaving very little free space. We built a scheduled job that archives old events to S3 and deletes them from the table. Three things bit us along the way:
+
+- **Indexing blocks writes.** Use `CREATE INDEX CONCURRENTLY` so building the index on `triggered_at` does not lock the table.
+- **Batching by day was too slow.** Reading a full day of events per iteration was the bottleneck. Iterating one hour at a time fixed it.
+- **DELETE does not free disk.** Autovacuum reclaims space for reuse but never returns it to the OS. Only `VACUUM FULL` shrinks the table on disk, and it needs an exclusive lock, so it means downtime.
+
+The end result: the table shrank by an order of magnitude and the RDS got most of its free space back.
+
+## Scenario
+
+> We have a multi-tenant setup where multiple client databases reside in a single RDS machine, with a 70GB disk attached.
+
+At Sharpsell, we capture user events across our mobile and web apps. Each event is sent to the backend over an API and stored in our transactional database, in the `analytics.events` table. For an active client, this table grows quickly and consumes a large amount of disk on the RDS instance.
+
+For one client, the table grew at an alarming rate. In about a week it had accumulated 8M records that used 14GB of disk, leaving us with just 4GB free on the RDS. At that rate we would exhaust the remaining space within a day or two.
+
+Running out of disk was not an option. It would crash the RDS instance and, with it, every application for every customer on that machine.
+
+Increasing the disk size was also unattractive, since it carries a recurring cost. Worse, you cannot reduce the disk size of an RDS instance once you have increased it. The only way back down is to provision a fresh instance, copy every client's data across, repoint the connection URLs, and restart the applications. This is far from trivial. I had done it once before, when the RDS had ballooned to 800GB, and it was an expensive, painful migration to bring it back to 60GB.
+
+## Objective
+
+> The plan was to keep only the most recent data, which our ETL jobs and other consumers still need, and archive everything older by writing it to S3 and then deleting it from the table to reclaim space.
+
+Archival was the only sustainable option. Without it, the database would keep growing and our infrastructure costs would climb with it. Query performance would also degrade steadily as the table got larger.
+
+## Solution
+
+We settled on a scheduled pruning process that runs across every client database in our RDS. For each database it:
+
+1. Fetches data from the `analytics.events` table that is older than the retention window, which defaults to keeping the last two days.
+2. Converts it to CSV.
+3. Zips and uploads it to S3 under `{client-db-name}/analytics/events/{date}.csv.zip`.
+4. Deletes that data from the `analytics.events` table.
+
+How much data to keep is driven by a single configuration value, stored in Parameter Store:
+
+- `0` keeps only the last two days in OLTP.
+- `-1` disables purging entirely.
+- `X` keeps the last `X` days in OLTP.
+
+The process runs every day at `12:00 AM UTC`, scheduled with cron.
+
+## Execution
+
+An engineer on the team wrote the first version of the archival script in Python. After a few rounds of review and changes, we were confident it did what we needed.
+
+The script worked as follows.
+
+1. Determine `start_date` and `end_date`.
+    1. `start_date` is the date of the earliest record in the table.
+    2. `end_date` defaults to the current date minus two days.
+2. Loop over each day from `start_date` to `end_date`. For each day:
+    1. Fetch the data in batches of 5K events.
+    2. Write it to a CSV.
+    3. Zip the CSV and upload it to the appropriate location in S3.
+
+At the end of this, every day's data was stored in S3, and the archived rows were deleted from the table.
+
+---
+
+## The query was too slow (First Gotcha)
+
+With 8M rows in the table, fetching data between two timestamps was painfully slow. The cause was the lack of an index on the `triggered_at` column.
+
+The obvious fix is to create one with `CREATE INDEX`.
+
+```sql
+CREATE INDEX idx_triggered_at ON analytics.events (triggered_at);
+```
+
+This has a catch. Postgres takes an **AccessExclusiveLock** on the table for the duration, which blocks every other operation (select, update, delete, and so on). With 8M rows, building the index would take around an hour, and that hour would be a full outage on the table.
+
+The alternative is `CREATE INDEX CONCURRENTLY`.
+
+```sql
+CREATE INDEX CONCURRENTLY idx_triggered_at ON analytics.events (triggered_at);
+```
+
+This takes a weaker **ShareUpdateExclusiveLock**, which lets reads and writes continue while the index is built. The tradeoff is that it runs considerably slower than a plain `CREATE INDEX`.
+
+---
+
+## The reads were still too heavy (Second Gotcha)
+
+Even with the index in place, the database could locate the rows quickly but still had to read a large volume of data off disk to return them.
+
+Our script fetched a full day of data at a time, which for this client was roughly 1.2M rows and about 1GB. Reading that much data per iteration was far too slow.
+
+The fix was to reduce the amount of data the database had to scan and return in each pass. We changed the script to iterate one hour at a time instead of one day at a time. Each iteration now touched a fraction of the data, and the script sped up dramatically.
+
+Running the updated script against this database (8M rows, 14GB), I estimated the full run would take roughly 2.5 to 3 hours.
+
+> We ran it on the client's EC2 machine and it worked. The table went from 8M rows down to 0.35M.
+
+---
+
+## The disk was still full (Third Gotcha)
+
+Our script had exported the old data to S3 and deleted it from the table, cutting the row count by 95%. Naturally, we expected disk usage to drop, with free space climbing from the initial 4GB back up to around 18GB.
+
+It did not. Free space stayed at 4GB. We had expected autovacuum to reclaim the space, but it did nothing of the sort.
+
+Autovacuum only runs `VACUUM` and `ANALYZE`.
+
+1. `VACUUM` marks the space previously occupied by deleted rows as reusable for new rows, but it does not compact the table or return space to the operating system. The table's on-disk size stays the same.
+2. `ANALYZE` collects statistics about the table's contents so the query planner can make better decisions. It has nothing to do with reclaiming space.
+
+To actually return space to the operating system, you have to run `VACUUM FULL`. It physically removes dead tuples and rewrites the table, releasing the freed space back to the OS, so the table shrinks to its true size.
+
+![VACUUM vs VACUUM FULL](https://miro.medium.com/v2/resize:fit:720/format:webp/1*QP5qvXbQ6HfNrPFZzD6d0Q.jpeg)
+
+Note that `VACUUM FULL` takes an `ExclusiveLock`, just like the index creation earlier. That meant downtime, so we scheduled it for off-hours.
+
+We ran `VACUUM FULL` on the `analytics.events` table, and it completed in 35 minutes. The table shrank from 14GB to 1.1GB, and free space on the RDS jumped from 4GB to 19GB.
+
+## Extras
+
+A few other constraints shaped the work and are worth calling out.
+
+1. Data loss was unacceptable. If anything failed at any stage, the source data had to remain intact. This was the hard constraint the whole design was built around.
+2. We needed to be able to restore the archived data back into the database on demand, exactly as it was.
+3. We needed a fast feedback loop to validate correctness. I wrote a utility that recreated the data locally, giving me a predictable way to confirm the script behaved as intended and that S3 and the database stayed consistent. This made iteration faster and gave us confidence in the result.
+
+## Conclusion
+
+What looked like a simple "delete old rows and reclaim space" task turned into three separate lessons about how Postgres actually behaves under the hood. Indexing a large table without downtime needs `CONCURRENTLY`. Scanning less data per pass matters more than any clever query. And a `DELETE`, even a huge one, does not shrink a table on disk until you rewrite it with `VACUUM FULL`. The archival job itself was the easy part. The gotchas were where the real work was.
