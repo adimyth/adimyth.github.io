@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "Aditya Mishra · Principal Engineer & AI Engineer",
   description:
-    "8+ years building AI systems that are scalable, reliable, and extensible, from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. Open to new opportunities.",
+    "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms. Open to new opportunities.",
   icons: {
     icon: "/favicon.svg",
     apple: "/apple-icon",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Aditya Mishra · Principal Engineer & AI Engineer",
     description:
-      "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
+      "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms.",
     url: SITE_URL,
     siteName: "Aditya Mishra",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Aditya Mishra · Principal Engineer & AI Engineer",
     description:
-      "8+ years building AI systems that are scalable, reliable, and extensible - from classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI.",
+      "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms.",
   },
 };
 
@@ -56,22 +56,25 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${lora.variable} ${firaCode.variable} scroll-smooth antialiased`}
     >
-      <body className="min-h-full bg-background text-foreground">{children}</body>
-      <PersonJsonLd />
-      <Script
-        src="https://www.googletagmanager.com/gtag/js?id=G-0E0FNTMPJX"
-        strategy="afterInteractive"
-      />
-      <Script id="google-analytics" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-0E0FNTMPJX');
-        `}
-      </Script>
+      <body className="min-h-full bg-background text-foreground">
+        {children}
+        <PersonJsonLd />
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0E0FNTMPJX"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0E0FNTMPJX');
+          `}
+        </Script>
+      </body>
     </html>
   );
 }
