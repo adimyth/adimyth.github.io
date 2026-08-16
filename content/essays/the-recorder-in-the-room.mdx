@@ -1,0 +1,291 @@
+---
+title: "The Recorder in the Room: Rebuilding One Video From Separate Streams"
+description: "Daily charges more to record a call than to host it. So I built the recorder. Putting the streams back on one timeline was the hard part."
+date: "2026-08-09"
+readTime: "12 min read"
+featured: true
+---
+
+[PitchWiz](https://pitchwiz.ai/) is a real-time conversational AI platform for sales training. A rep gets on a call with a voice agent playing a customer, works through a cold call or a round of objections, and then watches the whole thing back afterwards. **The playback is the part that teaches.** Without it the session is just a conversation nobody remembers.
+
+An 8 minute session costs about $0.064 in Daily participant minutes. Recording it costs about $0.108. *The recording is more expensive than the conversation it recorded.*
+
+That inversion is what started this. Not a scaling problem, not a feature gap, just a line item that looked wrong every time I read the bill.
+
+The shape of the fix came from somewhere ordinary. Half the meetings I sit in have an AI note taker in them, an extra participant that joins without a camera, records everything, and mails a summary round afterwards. Nobody finds it strange anymore. If a note taker can sit in a meeting and leave with the audio, a recorder can sit in a Daily room and leave with everything.
+
+So that is what I built. A headless bot that joins the room, subscribes to each participant's audio and video separately, and composes the final MP4 itself. Getting a first recording out of it took a couple of hours. Getting one I would put in front of a customer took **two days**, and nearly all of that went into a problem I had not thought about at all when I started.
+
+## What cloud recording actually sells you
+
+Daily's cloud recording gives you back **one file**. Participants arranged in a layout, audio mixed, timing correct, encoded and ready to hand to a customer. That single composited MP4 is the entire deliverable.
+
+Daily bills participant minutes in volume tiers, $0.0040 each in the 10K to 100K band we sit in, and bills cloud recording separately at $0.01349 per recorded minute. Both numbers are from their [published pricing](https://www.daily.co/pricing/video-sdk/). Here is the arithmetic for an 8 minute two-person session:
+
+| Component                     | Daily cloud recording | Bot                     |
+| ----------------------------- | --------------------- | ----------------------- |
+| Participant minutes (2 users) | $0.064                | $0.064                  |
+| Bot participant minutes       | none                  | $0.032                  |
+| Cloud recording               | $0.108                | $0.00                   |
+| Compute                       | none                  | about $0.013            |
+| **Total**                     | **$0.172**            | **about $0.109**        |
+
+**Roughly 37% cheaper per session. At 10K sessions a month, around $630 saved.** Every rupee of it comes from deleting one line: Daily's recording charge.
+
+That percentage deserves more scepticism than it usually gets, because it is *the least durable number on the page*. What is actually fixed is the saving in absolute terms, **about $0.063 a session**. The recording charge I delete does not depend on how many people are in the room, and neither does the single bot I add. So the percentage moves with headcount, and only ever downwards. A two-person call saves 37%. A four-person call saves the same $0.063 against a larger bill, which is **27%**. A roleplay is one rep and one agent, so 37% is the number that applies to us, and it is close to the best this design ever looks.
+
+Two things are worth saying plainly before going further. The bot is a participant, so you pay for its stream too, and that cost is real and permanent. And the saving is not free money. You are not buying a cheaper encoder.
+
+> You are taking delivery of the composition problem that Daily was quietly solving on your behalf.
+
+The rest of this is that problem.
+
+## Nobody in the room knows the bot is there
+
+The recorder joins publishing nothing, no camera and no microphone:
+
+```python
+self._client.join(
+    self.room_url,
+    meeting_token=bot_token,
+    client_settings={
+        "inputs": {
+            "camera": {"isEnabled": False},
+            "microphone": {"isEnabled": False},
+        }
+    },
+)
+```
+
+Publishing nothing is not the same as being invisible, though. A participant with its devices off is still *a participant*, and it would show up in everyone's participant list as a nameless third attendee. On a sales roleplay, an unexplained third party in the room is the difference between a training tool and something that feels like surveillance.
+
+The fix is the meeting token in that join call. Daily lets you mint a token that marks the joiner as having **no presence at all**:
+
+```python
+requests.post(
+    "https://api.daily.co/v1/meeting-tokens",
+    headers={"Authorization": f"Bearer {DAILY_API_KEY}"},
+    json={"properties": {
+        "room_name": room_name,
+        "permissions": {"hasPresence": False},
+    }},
+)
+```
+
+`hasPresence: False` is the whole trick, and exporting media out of a call is the exact case Daily [documents it for](https://docs.daily.co/guides/products/ai-toolkit). The bot holds a real connection and receives every track, but it does not appear in anyone's participant list, gets no tile, and fires no join event for the humans. From the rep's side the room contains one other person. **It is a full participant to the server and a ghost to everybody else.**
+
+What it does instead of publishing is subscribe. For each remote participant:
+
+```python
+self._client.set_audio_renderer(
+    pid,
+    callback=self.on_audio_frame,
+    sample_rate=16000,
+    callback_interval_ms=20,
+)
+self._client.set_video_renderer(
+    pid,
+    callback=self.on_video_frame,
+    color_format="RGBA",
+)
+```
+
+The thing that took me longest to internalise is that **there is no separate subscribe call**. Registering a renderer *is* the subscription. Which also means registering one twice gives you two of every callback, silently, with no error. Participants can be discovered two ways, once in `on_joined` for anyone already in the room and once in `on_participant_joined` for later arrivals, so recorder creation has to be deduplicated by participant id and renderers registered only when a recorder is genuinely new.
+
+What comes back is exactly what I wanted and nothing more: 16 kHz mono PCM in 20 ms chunks, and raw RGBA video frames, per participant, **unmixed**. Nobody has arranged anything. That is the point, and it is also the problem.
+
+## Approach one: a PNG for every frame
+
+My first version wrote every incoming frame to disk as a PNG, named by its capture timestamp in microseconds.
+
+```python
+elapsed_us = timestamp_us - self._first_ts_us
+fname = os.path.join(self._frames_dir, f"{elapsed_us:015d}.png")
+Image.frombytes("RGBA", (width, height), rgba_buffer).convert("RGB").save(fname)
+```
+
+This is more tempting than it sounds. Webcam video is not a fixed frame rate, it is whatever the network and the camera agreed on moment to moment, and the timestamps are the only honest record of that. Keeping one file per frame preserves them perfectly. Rebuilding the video afterwards is then an ffmpeg concat list where each frame's display duration is simply the gap to the next frame's timestamp. Variable rate reconstructed exactly, no assumptions.
+
+It also produces **about 2.2 GB per participant for 8 minutes**. A two-person session is 4.5 GB of PNGs on disk before any encoding starts.
+
+That is not a tuning problem. Uncompressed frames at 30 per second are just large, and no cleverness in the encode step gets that back.
+
+## Approach two: encode as the frames arrive
+
+The second version encodes to H.264 in real time with PyAV, directly on Daily's video callback thread, with no intermediate files at all.
+
+| | PNG frames | Direct encode |
+| --- | --- | --- |
+| Per participant, 8 min | about 2.2 GB | 10 to 15 MB |
+| Two-person session | about 4.5 GB | 25 to 30 MB |
+| Composition speed | slow | fast |
+
+**Around 200 times less disk.** All of the per-frame timestamps still survive, because they go into the presentation timestamps instead of into filenames.
+
+Solving disk is where the real problem started.
+
+## Nothing in the output says when anything happened
+
+At the end of a session I have a directory of files. Two videos, two WAVs. Each video starts at the moment that participant's first frame arrived. Each WAV starts at their first audio callback.
+
+**Every file has its own zero.** Nothing inside any of them records how they relate to each other, or to the call. If the second person joined 40 seconds in, that fact exists only in an event I received at the time and wrote down myself. The media is silent about it.
+
+Composition is not really an encoding job. *It is the job of inventing the shared timeline that never existed, and then making every file agree with it.*
+
+Most of what follows is the small ways that goes wrong.
+
+## The timebase is not a detail
+
+Daily hands you a microsecond timestamp per frame. The obvious move is to make that the timebase and be done.
+
+```python
+VIDEO_TIMEBASE = Fraction(1, 90000)
+
+elapsed_us = timestamp_us - self._first_ts_us
+pts = int(elapsed_us * 90000 // 1_000_000)
+
+# Daily occasionally repeats a timestamp. pts must strictly increase.
+if pts <= self._last_pts:
+    pts = self._last_pts + 1
+self._last_pts = pts
+```
+
+90000 is the standard H.264 and MP4 timebase, and using microseconds instead puts presentation timestamps in the billions for a call of any length, which overflows the MP4 muxer. At 90 kHz a 65 second video tops out around 5.8 million. Comfortable.
+
+There is a second trap in the same few lines. Creating the stream looks like it should carry a frame rate, and passing one quietly destroys the timing:
+
+```python
+# No rate= here. PyAV locks the timebase to 1/rate at creation and
+# overrides whatever you set afterwards.
+self._av_stream = self._av_container.add_stream("libx264")
+self._av_stream.time_base = VIDEO_TIMEBASE
+self._av_stream.codec_context.time_base = VIDEO_TIMEBASE
+```
+
+Set `rate=30` and every carefully computed timestamp gets reinterpreted against a timebase you did not choose. **The failure is not an exception. It is video that plays at the wrong speed.**
+
+And Daily will occasionally hand you the same timestamp twice, which the encoder rejects outright, hence the monotonicity guard.
+
+## Variable frame rate is a lie ffmpeg believes
+
+The files that come out of this are *correct* and also nearly unusable.
+
+Because the timestamps are genuinely irregular, the resulting stream reports `r_frame_rate=90000/1`. ffmpeg reads that and concludes it cannot map keyframe positions to wall-clock time. Seeking with `-ss` then lands somewhere *near* where you asked rather than where you asked, and the composite comes out with **frozen frames at every cut**.
+
+The fix is unglamorous. Re-encode each participant's video to constant 30 fps before touching it again:
+
+```bash
+ffmpeg -i participant.mp4 -c:v libx264 -preset fast -crf 18 \
+       -pix_fmt yuv420p -vf fps=30 participant.norm.mp4
+```
+
+Everything downstream then behaves. Worth noticing what just happened, though: the timestamps I went to some trouble to preserve exactly are now resampled onto a fixed grid, and every participant's video has been fully encoded a second time. I will come back to that.
+
+## The trim filter lies in the same direction
+
+The first version cut segments with ffmpeg's `trim` filter, `trim=start=12.5:end=27.5`, which reads like the obvious tool.
+
+On a variable rate stream it miscalculates seek positions in exactly the way described above, and produces the same frozen frames. Input seeking with `-ss` and output duration with `-t` work in wall-clock seconds and do not care what the timebase is, so the second version uses those instead.
+
+A small lesson, but a specific one: **on irregular streams, prefer the operations expressed in seconds over the ones expressed in frames.**
+
+## Audio needs a different kind of alignment
+
+Video and audio go wrong differently here.
+
+Each participant's WAV begins at their first audio callback, which means a person who joined 40 seconds late has a WAV whose sample zero is 40 seconds into the call. **Mix those as they are and everyone talks over each other from the beginning.**
+
+So each track gets silence prepended, sized by when that person joined relative to the earliest joiner, and the earliest joiner defines T=0 for the whole timeline:
+
+```bash
+ffmpeg -i iphone.wav -af "adelay=40000:all=1" iphone_padded.wav
+
+ffmpeg -i aditya.wav -i iphone_padded.wav \
+       -filter_complex "amix=inputs=2:duration=longest:normalize=0" mixed.wav
+```
+
+**Both options on `amix` are load-bearing.** `duration=longest` keeps the full length of the longest track, where `amerge` would silently truncate everything to the shortest one and *quietly lose the end of the call*. And `normalize=0` stops ffmpeg dividing every input's volume by the number of inputs, which otherwise makes a call get quieter as more people join it.
+
+## The timeline is just a sorted set of breakpoints
+
+This is the part I like, and it is much simpler than I expected before writing it.
+
+**The layout only ever needs to change when somebody joins or leaves.** So collect every join time and every leave time into a set, sort them, and treat each consecutive pair as a candidate window. A participant belongs in a window if they joined at or before it started and left at or after it ended, which by construction means they were present for *the whole window*.
+
+```python
+breakpoints = set()
+for r in recorders:
+    breakpoints.add(r.join_time_s)
+    if r.leave_time_s is not None:
+        breakpoints.add(r.leave_time_s)
+
+bp = sorted(breakpoints)
+for t_start, t_end in zip(bp, bp[1:]):
+    active = [
+        r for r in recorders
+        if r.join_time_s <= t_start
+        and r.leave_time_s is not None
+        and r.leave_time_s >= t_end
+        and os.path.exists(r.raw_video_path)
+    ]
+```
+
+Windows with nobody in them get dropped, as does anything under 10 milliseconds, which is what two participants joining near-simultaneously produces.
+
+Take a real session. I join at 0 from my laptop. My phone joins at 40 seconds and leaves at 55. The room expires at 65. Breakpoints are 0, 40, 55, 65, which gives three windows: full width, then side by side, then full width again.
+
+![Breakpoint timeline showing two participant tracks resolving into three layout windows](/diagrams/recorder-timeline.svg)
+
+The `os.path.exists` check in that filter is not defensive clutter. A participant who joined with their camera off produces no video file at all, and they need to **drop out of the layout without dropping out of the timeline**, because their audio still counts.
+
+## Compositing a window
+
+Each window becomes one ffmpeg invocation. Every participant's video is seeked to the offset that corresponds to the window start, rebased to zero, scaled into a tile, and stacked.
+
+```
+[0:v]setpts=PTS-STARTPTS,scale=640:720:force_original_aspect_ratio=decrease,
+     pad=640:720:(ow-iw)/2:(oh-ih)/2[v0];
+[1:v]setpts=PTS-STARTPTS,scale=640:720:force_original_aspect_ratio=decrease,
+     pad=640:720:(ow-iw)/2:(oh-ih)/2[v1];
+[v0][v1]hstack=inputs=2[vout]
+```
+
+Tile width is the output width divided by the number of active participants. `force_original_aspect_ratio=decrease` followed by a centred `pad` is what keeps a phone in portrait and a laptop in landscape from both being stretched into the same box. They get letterboxed instead, which looks like a deliberate choice rather than a bug.
+
+Segments are encoded with `-an`, **no audio whatsoever**. There is one mixed audio track for the entire call and it gets muxed once, at the very end. Trying to slice audio per segment and rejoin it is how you get clicks at every boundary.
+
+## The concat re-encodes on purpose
+
+Joining the segments should be the cheapest step in the pipeline. Stream copy, no transcode, seconds.
+
+It cannot be. **Daily adapts resolution mid-call when the network degrades**, so one participant can be 640x360 for part of a session and 320x180 for another part. Different segments end up with different dimensions, and `-c:v copy` does not degrade gracefully on a dimension change, it fails outright.
+
+So the concat is a full re-encode, libx264 at CRF 18, with the mixed WAV muxed in as AAC and `+faststart` so the file plays before it has finished downloading.
+
+## The result
+
+Sixty-five seconds, one file, two layout changes.
+
+<EssayVideo
+  src="/videos/daily-bot-recorder-sample.mp4"
+  poster="/videos/daily-bot-recorder-sample-poster.jpg"
+  caption="A real session. The layout switches to side by side when my phone joins at 40 seconds, and back to full width when it leaves at 55."
+/>
+
+The cuts are **hard cuts**. No crossfade, no held frame, no black panel while the layout changes. I tried softening them early on and it read as worse, not better. A hard cut at the exact moment somebody joins is legible. A 300 millisecond dissolve just looks like a rendering fault.
+
+## What is still wrong with it
+
+None of this is finished. Three things I would fix, roughly in the order they will bite.
+
+- **The video gets encoded three times end to end.** PyAV in real time, then the constant-rate normalize, then per segment, then again at concat. Each one was individually the right call and I would make each one again. Stacked together they are real generational loss and real CPU time, paid on every single session.
+- **The layout is horizontal stacking and nothing else.** Two participants look good. Five would be slivers. There is no grid, no active speaker view, no picture-in-picture, no name labels. A roleplay is always one rep and one agent, so it has never mattered, and it is *the first thing that breaks* the day that changes.
+- **The audio is 16 kHz mono.** Speech grade, chosen because the downstream consumer is a transcript. It is the right call for a transcript and a noticeably dull one for something a human being sits and watches. A recording people actually rewatch wants 48 kHz.
+
+## What the bill was actually buying
+
+I set out to remove a line item and I did. **About $0.063 a session, recurring**, with no change in what the rep sees at the end of their roleplay.
+
+What I have in exchange is an ffmpeg pipeline that I own and operate. Timebase overflow, seek behaviour on irregular streams, mixing rules that truncate your call if you pick the wrong filter, resolution changes that only appear on bad networks and only break the last step. *None of that was in the estimate* when I looked at the bill and thought this cannot be that hard.
+
+Cloud recording is not expensive because encoding video is expensive. Encoding is cheap and getting cheaper. **It is expensive because reconstructing one timeline from streams that never shared a clock is genuinely fiddly, and somebody has to hold that pager.** That is what the charge was for. Removing it was worth doing, and it was worth knowing exactly what I was buying instead.

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 210" width="560" height="210" role="img" aria-labelledby="recorder-timeline-title">
+  <title id="recorder-timeline-title">Breakpoint timeline: two participant tracks become three layout windows</title>
+  <defs>
+    <style>
+      .track { fill: #e2ddd3; stroke: #a39b90; stroke-width: 1.25; }
+      .window { fill: #f9f7f3; stroke: #a39b90; stroke-width: 1.25; }
+      .label { fill: #111111; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .rowlabel { fill: #4f4945; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 600; text-anchor: end; dominant-baseline: middle; }
+      .tick { fill: #4a4542; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+      .bp { stroke: #6b6460; stroke-width: 1.2; stroke-dasharray: 4 3; }
+      .axis { stroke: #c4bbb0; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <line class="bp" x1="70" y1="26" x2="70" y2="116"/>
+  <line class="bp" x1="353" y1="26" x2="353" y2="116"/>
+  <line class="bp" x1="459" y1="26" x2="459" y2="116"/>
+  <line class="bp" x1="530" y1="26" x2="530" y2="116"/>
+
+  <text class="rowlabel" x="62" y="49">Aditya</text>
+  <rect class="track" x="70" y="36" width="460" height="26" rx="6"/>
+  <text class="label" x="300" y="49">joined 0s, left 65s</text>
+
+  <text class="rowlabel" x="62" y="89">iPhone</text>
+  <rect class="track" x="353" y="76" width="106" height="26" rx="6"/>
+  <text class="label" x="406" y="89">40s to 55s</text>
+
+  <line class="axis" x1="70" y1="116" x2="530" y2="116"/>
+  <text class="tick" x="70" y="128">0s</text>
+  <text class="tick" x="353" y="128">40s</text>
+  <text class="tick" x="459" y="128">55s</text>
+  <text class="tick" x="530" y="128">65s</text>
+
+  <text class="rowlabel" x="62" y="167">output</text>
+  <rect class="window" x="70" y="150" width="283" height="34" rx="8"/>
+  <text class="label" x="211" y="167">full width</text>
+  <rect class="window" x="353" y="150" width="106" height="34" rx="8"/>
+  <text class="label" x="406" y="167">side by side</text>
+  <rect class="window" x="459" y="150" width="71" height="34" rx="8"/>
+  <text class="label" x="494" y="167">full width</text>
+</svg>

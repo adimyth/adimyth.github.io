@@ -208,6 +208,17 @@
   padding: 1rem;
 }
 
+.prose-essay video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 1.75rem auto;
+  display: block;
+  background: #111111;
+  border: 1px solid #d9d4cc;
+}
+
 /* Wide diagrams keep native size; scroll instead of shrinking into the prose column. */
 .prose-essay .diagram-scroll {
   overflow-x: auto;
