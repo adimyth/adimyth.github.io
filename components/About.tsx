@@ -23,7 +23,7 @@ export default function About() {
                   style={{ fontFamily: "var(--font-lora)" }}
                   className="text-5xl font-bold text-[#111111]"
                 >
-                  8+
+                  9+
                 </p>
                 <p className="text-sm text-[#4a4542] mt-1">
                   Years of experience

@@ -10,9 +10,9 @@ export const profile = {
   name: "Aditya Mishra",
   title: "Principal Engineer & AI Engineer",
   tagline:
-    "8+ years building AI systems that are scalable, reliable, and extensible. From classical ML and NLP to Generative AI, LLM-powered applications, and Agentic AI. I write about the trade-offs and hard lessons from production.",
+    "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms. I write about the trade-offs and hard lessons from production.",
   about:
-    "I bring both AI fundamentals and the Systems Engineering depth to take models from prototype to production, working across data pipelines, APIs, infrastructure, and model integration trade-offs.",
+    "I build both halves of the stack: the distributed systems that carry the load, and the AI products customers actually touch. Most of my work is the unglamorous part in between, which is usually what decides whether the rest of it holds.",
   email: "mishraaditya6991@gmail.com",
   phone: "+91 9029080380",
   github: "https://github.com/adimyth",
@@ -23,16 +23,16 @@ export const profile = {
 // Google Drive export: make sure each doc is set to "Anyone with the link can view"
 export const resumes = [
   {
+    role: "Principal Engineer",
+    description:
+      "Focused on distributed systems, platform engineering, real-time data infrastructure, and service design. Best for engineering leadership and architecture roles.",
+    url: "https://docs.google.com/document/d/1jxlTpeo3LGoKuRN1S5tG99trEU-inq6lN1YYV_AqFSI/export?format=pdf",
+  },
+  {
     role: "AI Engineer",
     description:
       "Focused on LLM applications, agentic systems, RAG pipelines, voice AI, and MLOps. Best for AI-first product companies and research-adjacent roles.",
     url: "https://docs.google.com/document/d/1O1dJjBs6U4unnZY_bk4CMisWBNK58X-gs0CX2zdRhxk/export?format=pdf",
-  },
-  {
-    role: "Software Architect",
-    description:
-      "Focused on distributed systems, platform engineering, real-time data infrastructure, and service design. Best for engineering leadership and architecture roles.",
-    url: "https://docs.google.com/document/d/1jxlTpeo3LGoKuRN1S5tG99trEU-inq6lN1YYV_AqFSI/export?format=pdf",
   },
 ];
 
@@ -107,49 +107,49 @@ export const experience: ExperienceEntry[] = [
       {
         name: "Pitchwiz",
         description:
-          "AI-powered conversational roleplay platform & evaluation for sales training. Led end-to-end development of proctoring, script reading, multi-language support, and real-time video-based conversational AI.",
+          "Conversational roleplay and evaluation platform for sales training. Led end-to-end development of proctoring, script reading, multi-language support, and real-time video-based conversational AI.",
         stack: ["Pipecat", "Modal", "Daily", "LLMs", "Celery", "NLP"],
       },
       {
         name: "AI Agent Builder Framework",
         description:
-          "Internal platform enabling developers, CS, and product teams to build and ship agents without reinventing infrastructure. Built on the insight that agents differ only in tools, system prompts, and context.",
+          "Internal platform that lets developers, CS, and product teams ship agents without rebuilding the infrastructure each time. Built on the insight that agents differ only in their tools, system prompts, and context.",
         stack: ["LangGraph", "LangSmith", "MCP", "Python", "FastAPI"],
       },
       {
         name: "Voice Agents",
         description:
-          "RAG-based voice agent for sales conversations delivering factually grounded responses and executing user-driven actions in real time.",
+          "RAG-based voice agent for sales conversations. Grounds every response in retrieved source material and executes user-driven actions in real time.",
         stack: ["RAG", "Vector Search"],
       },
       {
         name: "Dynamic Presentation Engine",
         description:
-          "Low-code tool builder system providing composable blocks that teams use to build and plug product features directly into client apps, without those features needing to exist in the core Sharpsell platform. Reduced client-specific delivery turnaround from months to days, it forms one of the foundational components that makes the platform adaptable to any client.",
+          "Low-code builder of composable blocks that teams use to plug product features straight into client apps, without those features ever existing in the core Sharpsell platform. Cut client-specific delivery turnaround from months to days, and remains one of the foundational pieces that makes the platform adaptable to any client.",
         stack: ["Low-code", "Composable Architecture", "Python", "FastAPI"],
       },
       {
         name: "Core Service",
         description:
-          "In-house authentication and authorisation service in Go, powering every user and every request across the platform. Supports SSO, Email-password, Phone-OTP login types and RBAC for access control. Scales to hundreds of requests per second.",
+          "In-house authentication and authorisation service in Go, sitting behind every user and every request on the platform. Supports SSO, email and password, and phone OTP logins, with RBAC for access control. Scales to hundreds of requests per second.",
         stack: ["Go", "PostgreSQL", "Redis", "RabbitMQ", "JWT", "RBAC"],
       },
       {
         name: "Real-time Analytics Platform",
         description:
-          "End-to-end analytics infrastructure built from the ground up, from raw events to actionable insights in under a few minutes.",
+          "Analytics infrastructure built from scratch, carrying raw events through to usable insight in minutes.",
         stack: ["Apache Kafka", "Apache Flink", "ClickHouse", "Kubernetes", "Apache Superset"],
       },
       {
         name: "Sales Reels",
         description:
-          "Short-form video platform solving tacit knowledge sharing in enterprises.",
+          "Short-form video platform for sharing the tacit knowledge locked inside an enterprise.",
         stack: ["MediaPipe", "LLMs", "FFmpeg", "AWS Lambda", "AWS MediaConvert"],
       },
       {
         name: "Trust & Data Compliance",
         description:
-          "PII compliance across multiple microservices to meet enterprise data security requirements.",
+          "PII compliance across multiple microservices, bringing the platform in line with enterprise data security requirements.",
         stack: ["Python", "PostgreSQL", "Unleash (feature flag)", "Encryption"],
       },
     ],
@@ -165,13 +165,13 @@ export const experience: ExperienceEntry[] = [
       {
         name: "Life Insurance Underwriting Automation",
         description:
-          "Deep learning system automating underwriting decisions for life insurance proposals, reducing manual intervention across the pipeline.",
+          "Deep learning system that automates underwriting decisions on life insurance proposals, cutting manual intervention across the pipeline.",
         stack: ["Python", "TensorFlow", "ETL", "Deep Learning"],
       },
       {
         name: "Underwriting Automation Module",
         description:
-          "Tools and dashboards for controlling automation flow and visualising underwriting results for client teams.",
+          "Tools and dashboards that let client teams control the automation flow and read the underwriting results themselves.",
         stack: ["Python", "Scikit-learn", "Dashboards", "ML"],
       },
     ],
@@ -192,7 +192,7 @@ export const experience: ExperienceEntry[] = [
       {
         name: "ML Across Domains",
         description:
-          "Applied ML across diverse problem domains for multiple clients.",
+          "Applied ML for multiple clients, spanning computer vision, OCR, and NLP problems.",
         stack: ["Python", "Mask R-CNN", "Tesseract", "NLP", "Scikit-learn"],
       },
     ],

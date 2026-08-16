@@ -11,7 +11,7 @@ export default function Resume() {
         <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[#111111] leading-tight mb-4">
           Pick your version.
         </h2>
-        <p className="text-lg text-[#333333] mb-12 max-w-xl leading-relaxed">
+        <p className="text-lg text-[#333333] mb-12 leading-relaxed">
           Same person, two lenses. Choose the resume that matches the role you
           are hiring for.
         </p>
