@@ -6,8 +6,6 @@ import { ArrowUpRight } from "lucide-react";
 import { getAllEssays, formatEssayDate } from "@/lib/essays";
 import { profile } from "@/lib/data";
 
-const PREVIEW_COUNT = 5;
-
 export const metadata = {
   title: `${profile.name}`,
   description:
@@ -16,7 +14,7 @@ export const metadata = {
 };
 
 export default function Home() {
-  const essays = getAllEssays().slice(0, PREVIEW_COUNT);
+  const essays = getAllEssays();
 
   return (
     <>
@@ -50,16 +48,6 @@ export default function Home() {
                 <ArrowUpRight className="w-5 h-5 text-[#4a4542] group-hover:text-[#111111] transition-colors shrink-0 mt-1" />
               </Link>
             ))}
-          </div>
-
-          <div className="mt-10">
-            <Link
-              href="/essays"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#4a4542] hover:text-[#111111] transition-colors"
-            >
-              All Posts
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
       </main>
