@@ -1,0 +1,251 @@
+---
+title: "Blue/Green Is Not a Button: Upgrading RDS Postgres 13 to 17"
+description: "AWS says the switchover takes under a minute. That part is true. It is also the cheapest part of the upgrade."
+date: "2026-02-15"
+readTime: "13 min read"
+featured: true
+---
+
+Standard support for Postgres 13 on RDS ended on **28 February 2026**. Nothing breaks on that date. Your instances keep running, your queries keep working, and AWS quietly moves you onto Extended Support, billed at **$0.10 per vCPU-hour on top of what you already pay**.
+
+I priced it for our fleet:
+
+| Environment | Additional cost, per month |
+| --- | --- |
+| Production RDS | $2,920 plus taxes |
+| Non-production RDS | $1,050 plus taxes |
+
+**About $3,970 a month, plus taxes, to keep running a database version that worked perfectly well the day before.** Close to $48K a year for nothing. And the rate is not fixed: it holds for the first two years and then doubles to $0.20 per vCPU-hour, so waiting gets more expensive rather than less.
+
+That was the entire business case. Not a feature we wanted, not a performance problem. A deadline with a price attached.
+
+So: five RDS instances to move from Postgres 13 to 17.2, three production and two non-production, all through AWS Blue/Green Deployments. The one that set the difficulty was a production instance carrying **64 databases**, one per tenant.
+
+The feature is genuinely good and it did work. But the sentence everyone quotes, that a switchover takes under a minute, is true the way "the flight is two hours" is true. It leaves out the airport.
+
+## What blue/green actually does
+
+RDS creates a full copy of your instance, the *green* environment, and keeps it in sync with production, the *blue* environment, using logical replication. You upgrade green to the new major version while blue carries on serving traffic. When you are ready, you switch over, and RDS renames the endpoints so that green becomes production and blue is retired as `-old1`.
+
+That shape is exactly right. Blue really does serve writes for the entire creation and sync window, which on a real fleet is hours, not minutes. The old approach, an in-place major version upgrade, takes the database down for that whole time. Blue/green removes that outage and it is worth using for that reason alone.
+
+What follows is everything between the shape and the reality.
+
+## First, we read four release notes
+
+Before touching any infrastructure we had to answer whether our applications would survive on 17 at all. Four major versions is a lot of accumulated default changes, and most do not announce themselves. They just start behaving differently.
+
+| Change | Landed in | What we did |
+| --- | --- | --- |
+| `rds.force_ssl` defaults to `1`, was `0` on 13 | 17 | Confirmed every connection string used TLS, and set the parameter explicitly on green. |
+| No implicit `CREATE` on the `public` schema | 15 | Checked nothing relied on it, with an explicit `GRANT` as fallback. |
+| `rds_reserved_connections` holds slots back for RDS admin | 17 | Reviewed headroom on `max_connections`. |
+| Password encryption moved from MD5 to SCRAM-SHA-256 | 14 | Verified every client driver supported SCRAM. |
+| Substantial query planner changes | 14 to 17 | Planned an `ANALYZE` straight after switchover, then watched slow queries. |
+
+Alongside that, the application itself: no array types, `json->>` used heavily and not deprecated, no reliance on triggers, SQLAlchemy staying on 1.4 rather than absorbing a 2.0 migration at the same time, and no schema differences between environments.
+
+**None of this is glamorous and all of it is the job.** By the time we started, the open question was not whether the application would work on 17. It was whether the upgrade mechanism would. That turned out to be the harder one.
+
+## Failure 1: It fails before it starts
+
+The first attempt to create the deployment did not get as far as copying anything:
+
+```
+Creation of blue/green deployment failed due to incompatible parameter(s):
+max_replication_slots, and max_logical_replication_workers
+```
+
+Blue/green on Postgres runs on logical replication, and logical replication needs to be switched on and sized before RDS will agree to start. The parameter group on blue needed:
+
+| Parameter | Value | Why |
+| --- | --- | --- |
+| `rds.logical_replication` | `1` | Turns on logical replication at all. |
+| `max_replication_slots` | `75` | One slot per database, plus headroom. |
+| `max_wal_senders` | `75` | Matches the slot count. |
+| `max_logical_replication_workers` | `75` | Matches the slot count. |
+| `max_worker_processes` | `95` | Has to cover the replication workers plus everything else. |
+| `synchronous_commit` | `on` | |
+| `log_min_messages` | `warning` | The reason we saw any of this. |
+
+**The number that surprised me is 75, and where it comes from.** Not table count, not connection count, not instance size. Logical replication creates **a slot per database**, and we had 64 on that instance, so the slot count has to clear the database count with headroom. Run one database per instance and this parameter never comes up. Run a multi-tenant fleet on one instance and it is the first wall you hit. `max_worker_processes` then has to cover those workers alongside autovacuum and parallel query, or they never start at all: `75 + 3 + 8 = 86`, plus 10% headroom, 95.
+
+And here is the part that matters for the rest of this essay. **Every one of those is a static parameter.** Setting them means rebooting blue, which means **the first outage happens before the upgrade has started**, and it has nothing to do with blue/green at all.
+
+## Failure 2: DDL does not replicate, and nothing stops you running it
+
+Logical replication carries row changes. It does not carry schema changes. Run a migration against blue during the sync window and Postgres tells you, at warning level:
+
+```
+WARNING: command will not be replicated to the green instance: "ALTER TABLE"
+```
+
+A warning. Not an error, not a refusal. The statement succeeds on blue, green never hears about it, and the two schemas quietly diverge. You find out later, when the migration runs a second time and blue has the column but the migration state does not agree:
+
+```
+ERROR: column "id" of relation "user_groups" already exists
+```
+
+Which is how one service ended up doing this:
+
+```
+08:50:17 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
+08:51:23 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
+08:52:29 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
+08:53:36 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
+08:54:42 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
+```
+
+The same statement, once every sixty-six seconds, indefinitely. A migration that was not idempotent, a container with `restart: always`, and a schema that had been deliberately frozen. The migration failed, the service died, the orchestrator brought it back, the migration ran again. **Nobody had told the deploy pipeline that the schema was closed for business.** We only caught it because `log_min_messages` was set to `warning`. At the default level that "will not be replicated" line never appears at all.
+
+It gets worse than divergence. One of AWS's pre-switchover guardrails, *Unsupported PostgreSQL changes*, verifies that no DDL has been performed on blue. If it finds any, replication moves to `Replication degraded`, switchover becomes unavailable, and the recommended remedy is to **delete and recreate the blue/green deployment and all green databases**. Hours of syncing thrown away because one migration slipped through.
+
+So the schema has to be genuinely frozen, not frozen by agreement. An event trigger does it:
+
+```sql
+CREATE OR REPLACE FUNCTION block_ddl_bg() RETURNS event_trigger AS $$
+DECLARE
+    allowed_users TEXT[] := ARRAY['rdsadmin', 'rdsrepladmin'];
+    allowed_roles TEXT[] := ARRAY['rdsrepladmin'];
+BEGIN
+    IF session_user = ANY(allowed_users) OR current_role = ANY(allowed_roles) THEN
+        RETURN;
+    END IF;
+    RAISE EXCEPTION 'DDL operations are blocked for Blue/Green Deployment. User: %, Role: %',
+        session_user, current_role;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE EVENT TRIGGER block_ddl_trigger ON ddl_command_start
+    EXECUTE FUNCTION block_ddl_bg();
+```
+
+Only the RDS internal accounts get through, because RDS itself runs DDL on green to perform the upgrade. Two things to know before using it.
+
+**Your own master user is blocked too.** That is the point, but it means no emergency schema fix during the window without dropping the trigger and starting the divergence clock.
+
+**The trigger replicates to green.** It is a schema object, so it lands on the new production database along with everything else. Forget to drop it after switchover and your freshly upgraded production database silently rejects every migration you send it, citing a blue/green deployment that finished hours ago.
+
+## Failure 3: A table with no primary key cannot replicate an update
+
+The next failure came from application traffic rather than migrations:
+
+```
+ERROR: cannot update table "challenges" because it does not have a replica identity and publishes updates
+HINT: To enable updating the table, set REPLICA IDENTITY using ALTER TABLE.
+```
+
+Logical replication ships an UPDATE or DELETE as "change the row identified by *this*". Without a primary key there is no *this*, so Postgres refuses the write outright. Not the replication, **the write itself**. Ordinary application traffic starts failing on tables that have worked fine for years.
+
+Finding them is one query:
+
+```sql
+SELECT n.nspname AS schema_name,
+       c.relname AS table_name,
+       pg_size_pretty(pg_total_relation_size(c.oid)) AS table_size
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_constraint con
+       ON con.conrelid = c.oid AND con.contype = 'p'
+WHERE c.relkind = 'r'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  AND con.conname IS NULL;
+```
+
+There were far more than expected. Years of tables created by different people, none of them wrong exactly, all of them fine right up until something needed to identify a row from outside the database.
+
+Adding primary keys to all of them, across 64 databases, mid-upgrade, was not on the table. The blunt fix is `ALTER TABLE schema.table REPLICA IDENTITY FULL`, which tells Postgres to identify rows by their entire contents. It works, and **it is not free**: every UPDATE and DELETE on those tables now writes the complete old row into the WAL, not just the changed columns.
+
+The honest part is that **nothing in our runbook ever reverts it**. It was set to survive an upgrade that finished weeks ago and it is still set, quietly load-bearing because nobody remembers it is there.
+
+## Failure 4: Sequences do not come across
+
+Logical replication carries table rows. It does not carry sequence state.
+
+This one is easy to miss because nothing complains during the sync. Green has every row, present and correct. What it does not have is the current value of any sequence, and those sit wherever they were when green was created.
+
+The moment you switch over and the first insert lands, the sequence hands out a value some row already owns, and you get a primary key violation on a table that looks perfectly healthy. Then another, for as long as it takes the sequence to climb back to where the data already is.
+
+The fix is a `setval` for every sequence in every database:
+
+```sql
+SELECT setval('schema.table_id_seq', COALESCE(MAX(id), 1))
+FROM   schema.table;
+```
+
+The important detail is **when**. This runs after switchover, not before, because anything you compute earlier is stale by the time it matters. It lands in the window between the swap completing and traffic being let back in, which makes it one more thing between you and being done.
+
+## Failure 5: Blue/green will not take your cross-region replica with it
+
+This is the one I would most want someone else to know before they start.
+
+We ran a cross-region read replica in Hyderabad as our disaster recovery position. It existed precisely so that losing a region would not lose the business.
+
+**Blue/green does not support it.** Green copies your instance's topology, but a cross-region replica is not part of that topology as far as blue/green is concerned. It is not cloned, not upgraded, and it does not follow the switchover. It keeps replicating from blue, on Postgres 13, until blue stops being production, at which point it is attached to a retired instance running the version you just spent a weekend getting off.
+
+There is no clever answer. Delete the replica before the upgrade, run the upgrade without it, then recreate it from the new Postgres 17 primary and wait for it to seed across regions from scratch.
+
+Read that middle step again. **There is a window, spanning the whole upgrade and the replica rebuild after it, where you have no cross-region disaster recovery at all.** That is the highest-risk part of the project, and it is not the switchover everybody worries about.
+
+Nothing puts this in front of you. It is a line on a limitations page. If your DR posture is a compliance commitment rather than a preference, that line decides whether you can use blue/green at all, and it should be the first thing you check rather than something you find while planning the cutover.
+
+## The downtime is not where AWS puts it
+
+Here is the shape of the whole operation.
+
+![Timeline of an RDS blue/green upgrade showing which phases cost downtime](/diagrams/blue-green-timeline.svg)
+
+| Phase | Cost to us | Why |
+| --- | --- | --- |
+| Parameter change on blue | Full outage, one reboot | The replication parameters are static. |
+| Green creation and sync | Reads only, by our choice | Blue/green allows writes here. We declined. |
+| Switchover | Full outage, typically under a minute | RDS stops writes, drops connections, waits for catch-up, renames. |
+| Parameter restore on green | Full outage, one reboot | Static parameters again. |
+
+AWS's claim about the switchover holds up. RDS *"stops new write operations on the primary DB instance in both environments"*, drops connections, waits for green to catch up, renames the endpoints, and lets traffic back in. It is fast and it does not lose data.
+
+**It is also the cheapest line in that table.** The reboots on either side cost more, and they exist purely because the parameters that make logical replication possible cannot be changed without one. You reboot to turn the machinery on, and reboot again afterwards to turn it back down, because leaving 75 replication slots and 95 worker processes configured on a production instance is not free either. Neither reboot appears in any description of blue/green, because strictly speaking neither is part of blue/green. They are the price of admission.
+
+And the longest line in the table is the one we chose.
+
+One more trap in the same area. If you see 300 seconds quoted as the switchover time, that is the **default `--switchover-timeout`**, which is a ceiling, not a duration. Exceed it and the entire switchover rolls back with no changes to either environment. It is a safety net that people keep reading as an estimate.
+
+## Finding the window was harder than the upgrade
+
+All of the above is engineering, and engineering is the tractable part.
+
+In a multi-tenant setup, downtime is not a decision you make. **It is a decision you negotiate, with every tenant, at once.** One instance means one maintenance window means one set of customers who all have to agree to be down at the same moment, and they rarely want the same moment. Month ends, reporting days, demos, regional holidays, shift patterns. The intersection is small and it does not care about your deadline. That negotiation, not the technical work, is what pushed us past the original date.
+
+Where we landed was **Sunday evening, 8 PM to 11 PM**, with a hard stop before midnight because the overnight crons and ETL jobs start then and they assume a database that answers.
+
+So the constraint was never "about fifteen minutes of downtime". It was three hours of wall clock, inside which every reboot, the sync, the switchover, the sequence resets and the verification had to fit, with margin left to notice something wrong and still act on it.
+
+## The choice we made, and would make again
+
+For the whole time green was being created and syncing, we put every database into `default_transaction_read_only` and terminated the open backends so existing sessions picked it up.
+
+**Blue/green does not ask for this.** The creation window is the phase the feature exists to protect, with blue serving writes while logical replication carries them across. By clamping it shut we turned the one genuinely zero-downtime phase into the longest read-only stretch of the night, and that is why the window had to be three hours rather than fifteen minutes.
+
+The reasoning still looks sound. Writes flowing into blue during creation are exactly what produces replication lag, replica identity failures on tables we had just patched, and drift across 64 databases we could not individually watch. A read-only database cannot drift, and it cannot surprise you at the switchover guardrail, which is what we cared about most, because failing that check means deleting the deployment and syncing again with the clock running.
+
+So the honest framing is not that we needed it. We **traded the feature's best property for certainty**, on a night with no room to retry. Given a longer window and a smaller fleet I would let blue keep taking writes. Given three hours on a Sunday and 64 tenants, I would clamp it shut again. The point is that it should be a decision, not an accident.
+
+## What I would check before doing it again
+
+- **Check replication lag before you switch over.** We did, and there was none, which is what a read-only source buys you. Watch the `OldestReplicationSlotLag` CloudWatch metric, or query it directly with `SELECT slot_name, (pg_current_wal_lsn() - confirmed_flush_lsn) AS lsn_distance FROM pg_replication_slots WHERE slot_type = 'logical';`. Zero distance means caught up.
+- **Check your DNS TTL is at or below five seconds.** Anything higher and clients keep resolving the old endpoint after the rename, writing to a database that is no longer production.
+- **Long-running transactions and DDL will block the guardrails.** Pick a quiet window, and kill anything long before you start rather than discovering it in the switchover check.
+- **Take a snapshot immediately before you start, and know what it is for.** We did, on every instance. It is worth having and it is not a rollback: it is a restore to the moment before the upgrade, so using it means losing everything written since. Once you switch over and traffic resumes on green, there is no going back to blue.
+- **Do not clean up on the night.** We left the old instances running for a couple of days before deleting anything. They cost money and it is worth every rupee. The failure mode you are protecting against is not the one that shows up during the cutover, it is the one a tenant reports on Tuesday morning, and by then you want the old database still sitting there intact rather than remembered fondly.
+
+## The button is real, the runbook is the work
+
+Blue/green does what it claims. The switchover was quick and lossless, and the alternative would have meant taking 64 tenants down for hours instead of minutes.
+
+What the button does not tell you is that the real cost sits in the parameter reboots bracketing it, that logical replication needs a slot for every database you own, that your deploy pipeline will keep firing schema changes into a database you have deliberately frozen, that a table without a primary key will refuse ordinary writes, that your sequences arrive pointing at data that already exists, or that your cross-region disaster recovery has to be torn down and rebuilt around the whole thing.
+
+None of it is hidden. It is spread across a limitations page, a parameters reference, and the general knowledge that logical replication is fiddly. The work is assembling that into one sequence before you start, and then finding three hours on a Sunday in which to run it.
+
+We finished with time in hand and the $3,970 a month never started. But AWS gave us a button, and the button was maybe a tenth of the job.
+
+The runbook, parameter tables and helper scripts are on GitHub at [adimyth/rds-postgres-blue-green-upgrade](https://github.com/adimyth/rds-postgres-blue-green-upgrade). Take what is useful, and read the limitations page first.
