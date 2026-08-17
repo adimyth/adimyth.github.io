@@ -22,7 +22,7 @@ export default function Nav() {
     >
       <nav className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link
-          href="/"
+          href="/about"
           className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
         >
           Aditya Mishra
@@ -30,18 +30,10 @@ export default function Nav() {
         <ul className="flex items-center gap-8">
           <li>
             <Link
-              href="/essays"
+              href="/"
               className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
             >
-              All Essays
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/about"
-              className="text-sm font-bold text-[#333333] hover:text-[#111111] transition-colors"
-            >
-              About
+              Essays
             </Link>
           </li>
         </ul>
