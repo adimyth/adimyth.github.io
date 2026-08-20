@@ -4,7 +4,7 @@ import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
 export default function Footer() {
   return (
     <footer className="px-6 py-8 border-t border-[#d9d4cc]">
-      <div className="max-w-2xl mx-auto flex items-center justify-between">
+      <div className="max-w-3xl mx-auto flex items-center justify-between">
         <p className="text-xs text-[#6b6460]">
           &copy; {new Date().getFullYear()} {profile.name}
         </p>
