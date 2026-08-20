@@ -1,17 +1,17 @@
 ---
 title: "LLM Inference: KV Caching"
 description: "Generating a response costs quadratic work unless you cache. The KV cache fixes that and hands you a memory bill instead, and that bill is what decides how many people can use your product at once."
-date: "2026-08-21"
+date: "2026-08-15"
 readTime: "9 min read"
 featured: true
 draft: true
 ---
 
-Ask a language model for a 500 word answer and, done naively, the 500th token costs roughly 500 times what the first one did. Not because the model grew. Because it recomputes nearly everything it already worked out on the previous step.
+Ask a language model for a 500 word answer. Without a cache, producing the 500th token costs about 500 times what the first one cost, because the model recomputes everything it worked out on the step before.
 
 **The KV cache is the fix.** It is the first optimisation anyone serving an LLM turns on, and without it nothing you use today would be affordable. It is also the reason a GPU runs out of memory long before it runs out of compute.
 
-I have been working through [learn-inference.com](https://learn-inference.com/) to get systematic about how inference actually behaves, rather than picking it up in fragments from incident reviews. This is my understanding of the caching part.
+I have been working through [learn-inference.com](https://learn-inference.com/) to get systematic about how inference behaves, rather than picking it up in fragments from incident reviews. This is my understanding of the caching part.
 
 Every number below came from running the code that produces it, on a MacBook Pro with an M4 Pro and 48GB of memory. The scripts are in [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments) if you want to check them.
 
@@ -23,7 +23,7 @@ Attention is the operation where a token decides which earlier tokens matter to 
 
 - **Q, the query.** What this token is looking for.
 - **K, the key.** What each token advertises about itself, so others can find it.
-- **V, the value.** What a token actually contributes once someone attends to it.
+- **V, the value.** What a token contributes once someone attends to it.
 
 The operation is a lookup with soft matching:
 
@@ -33,13 +33,13 @@ Attention(Q, K, V) = softmax( Q Kᵀ / √d ) V
 
 `Q Kᵀ` scores the current token's query against every earlier token's key. The softmax turns those scores into weights. Those weights then mix the values. So K and V describe the *past*, and Q describes the *token being generated right now*.
 
-That asymmetry is the whole trick. **Q is different on every step and is discarded immediately. K and V belong to tokens that already exist and never change again**, because attention is causal and nothing arriving later alters what came before.
+That asymmetry is the whole trick. **Q changes on every step and is thrown away. K and V belong to tokens that already exist and never change again**, because attention is causal and nothing arriving later alters what came before.
 
-Which means one of the three is worth keeping, and it is the two that are not Q.
+Only two of the three are worth keeping, and they are the two that are not Q.
 
 ---
 
-## The problem, stated plainly
+## What generation costs without a cache
 
 A transformer generates one token at a time, and each new token attends to every token before it. To produce token 100, the model needs K and V for tokens 1 through 99, at every layer.
 
@@ -54,7 +54,7 @@ step 4:  [The, capital, of, France]   → compute K,V for 4 tokens
 
 Generating *n* tokens costs `1 + 2 + 3 + ... + n` positions of work. **The cost of a response grows with the square of its length**, and every bit of the growth is recomputing something identical to what it computed a moment ago.
 
-That is the problem the KV cache solves. Not "make attention faster" in general. Specifically: **stop recomputing K and V for tokens that have not changed.**
+That is what the KV cache fixes: **stop recomputing K and V for tokens that have not changed.**
 
 ## The fix
 
@@ -68,7 +68,7 @@ step 3:  [of]       → compute K,V for "of",      append to cache
 
 Per-step work becomes constant instead of growing, so generating *n* tokens is linear rather than quadratic.
 
-The code below is deliberately the textbook version: a Python loop calling `transformers` one token at a time, where the cache is a single argument. **That is not how anything is served in production.** Real inference runs on an engine, vLLM or SGLang or TensorRT-LLM, and everything later in this essay, paged attention and prefix caching included, lives in the engine rather than in `transformers`. The loop is here because it isolates the mechanism, not because it resembles a serving stack.
+The code below is the textbook version: a Python loop calling `transformers` one token at a time, where the cache is a single argument. **That is not how anything is served in production.** Real inference runs on an engine, vLLM or SGLang or TensorRT-LLM, and everything later in this essay, paged attention and prefix caching included, lives in the engine rather than in `transformers`. The loop is here because it isolates the mechanism, not because it resembles a serving stack.
 
 ```python
 @torch.no_grad()
@@ -86,7 +86,7 @@ def generate(prompt_ids, new_tokens, use_cache):
 
 I ran that against **GPT-2 (124M), fp32, on CPU, from a 64 token prompt, greedy decoding**, timing both paths back to back and reporting the **median of three runs** per cell. Small model, no GPU, so read the shape rather than the absolute times.
 
-Each row doubles the output length, so the two `vs previous row` columns show what one doubling actually costs:
+Each row doubles the output length, so the two `vs previous row` columns show what one doubling costs:
 
 | New tokens | No cache | vs previous | Cache | vs previous | Speedup |
 | --- | --- | --- | --- | --- | --- |
@@ -96,15 +96,15 @@ Each row doubles the output length, so the two `vs previous row` columns show wh
 | 256 | 14.99s | 2.9× | 1.84s | 2.0× | 8.1× |
 | 512 | 50.61s | 3.4× | 3.96s | 2.2× | 12.8× |
 
-Read the two middle columns against each other. **Cached, a doubling costs almost exactly 2×, every time.** That is linear: twice the tokens, twice the work. **Uncached, the cost of a doubling is itself rising**, 2.3× then 2.4× then 2.9× then 3.4×, heading toward the 4× that pure quadratic growth would charge.
+Read the two middle columns against each other. **Cached, a doubling costs 2×, every time.** That is linear: twice the tokens, twice the work. **Uncached, the cost of a doubling is itself rising**, 2.3× then 2.4× then 2.9× then 3.4×, heading toward the 4× that pure quadratic growth would charge.
 
-Which is why the speedup column climbs from 3.9× to 12.8× rather than holding steady. A constant multiplier would mean the cache made things faster. A growing one means it changed the shape of the curve, and the gap keeps widening for as long as the answer keeps going.
+That gap is why the speedup column climbs from 3.9× to 12.8× rather than holding steady. A constant multiplier would mean the cache made things faster. A growing one means it changed the shape of the curve, and the gap keeps widening for as long as the answer keeps going.
 
 ---
 
 ## What the cache costs
 
-The cache lives in GPU memory, and its size is fixed by the model's shape and the sequence length:
+The cache lives in GPU memory, and its size is fixed by the model's shape and how long the conversation is:
 
 ```python
 def kv_cache_bytes(layers, kv_heads, head_dim, seq_len, batch=1, dtype_bytes=2):
@@ -112,58 +112,49 @@ def kv_cache_bytes(layers, kv_heads, head_dim, seq_len, batch=1, dtype_bytes=2):
     return 2 * layers * kv_heads * head_dim * seq_len * batch * dtype_bytes
 ```
 
-`seq_len` is the number of tokens in the conversation so far, prompt plus everything generated, because that is exactly what the cache holds. It grows by one on every decode step, which is why a cache bill is not fixed per request but climbs as the answer gets longer.
+`seq_len` is prompt plus everything generated so far, because that is what the cache holds. It grows by one every decode step, so a cache bill is never fixed per request. It climbs as the answer gets longer.
 
-Nothing else in that expression is tunable at serving time.
-
-The table below sets `seq_len` to each model's **full context window**, so it answers one specific question: what does a single conversation cost once it has filled the model completely? That is the worst case, not the typical one. A 300 token exchange costs a fraction of it. But the worst case is the number that matters, because it is what a server has to be able to survive.
+Setting `seq_len` to each model's full context window gives the worst case, one conversation that has filled the model:
 
 | Model | Attention | Full context | Cache at full context |
 | --- | --- | --- | --- |
 | Llama-2-7B | Multi-head, 32 KV heads | 4K | 2.00 GB |
 | Llama-3-8B | Grouped-query, 8 KV heads | 8K | 1.00 GB |
-| Mistral-7B | Grouped-query, 8 KV heads | 32K | 4.00 GB |
+| Mistral-7B-Instruct-v0.3 | Grouped-query, 8 KV heads | 32K | 4.00 GB |
 
-Llama-3 serves twice Llama-2's context for half the cache. That is grouped-query attention: keep all 32 query heads, but let groups of four share a single key and value head, so there are four times fewer things to store. The weights barely change.
+Llama-3 serves twice Llama-2's context for half the cache, and grouped-query attention is the entire reason. Keep all 32 query heads, but let groups of four share one key and value head. Each query head still attends its own way; there are four times fewer things to store.
 
-The clearest way to see what that saves is to hold the context fixed and change only the attention. Mistral serves 32K for 4 GB with its 8 KV heads. **Build the same model with 32 KV heads instead, the multi-head design Llama-2 used, and that same 32K conversation costs 16 GB** against roughly 14 GB of fp16 weights. The cache would outweigh the model.
+Hold the context fixed to see what that is worth. Mistral serves 32K for 4 GB. **Build the same model with multi-head attention instead and that same 32K conversation costs 16 GB**, against roughly 14 GB of fp16 weights. The cache would outweigh the model. Long context did not arrive because memory got cheaper. It arrived because architectures stopped caching so much per token.
 
-Worth being precise about what is hypothetical there. A context window comes from training and positional encoding; the number of KV heads is a separate architectural choice that decides what each token of that window *costs* to keep. The second row is a real model, and the alternative is the same model with one design decision reversed. Long context did not arrive because memory got cheaper. It arrived because architectures stopped caching so much per token.
+### Capping the window instead of shrinking the rows
 
-That formula is worth checking rather than trusting. Reading the actual tensors GPT-2 retains during generation, against what the arithmetic predicts:
+Grouped-query attention makes each token cheaper to keep. Sliding window attention changes how many tokens you keep at all.
+
+Under a sliding window, a token attends only to the last *W* tokens rather than to everything before it. Older entries fall out of the cache, so `seq_len` in the formula stops being the conversation length and becomes `min(conversation, W)`. The cache stops growing once the window fills.
+
+Mistral-7B-v0.1 shipped with a 4096 token window against a 32K context, which puts its cache at **0.5 GB rather than the 4 GB in the table above**, an eightfold difference from one config value. The instruct model at v0.3 sets the window to null and pays the full 4 GB.
+
+That is why the row above names a version. Two checkpoints of the same architecture, the same parameter count, the same advertised context, and caches that differ by 8×. Reading `sliding_window` out of `config.json` tells you more about what a model will cost to serve than its parameter count does.
+
+The cost is real: tokens outside the window are gone, and the model cannot attend to them. Long-range recall is what buys the memory back.
+
+The formula is worth checking rather than trusting. Reading the tensors GPT-2 retains during generation against what the arithmetic predicts:
 
 | seq_len | Measured | Formula |
 | --- | --- | --- |
 | 64 | 4.50 MB | 4.50 MB |
-| 128 | 9.00 MB | 9.00 MB |
 | 320 | 22.50 MB | 22.50 MB |
 | 576 | 40.50 MB | 40.50 MB |
 
-Exact at every checkpoint, and flat at 0.0703 MB per token. **The cache is one of the few things in a serving stack you can size on paper and be right**, which is what makes the concurrency arithmetic below trustworthy.
+Exact at every checkpoint, flat at 0.0703 MB per token. **The cache is one of the few things in a serving stack you can size on paper and be right about.**
 
-### The awkward part: nobody knows `seq_len` in advance
-
-Every figure above assumed a sequence length. In production you do not have one.
-
-The prompt you can count. The response you cannot, because its length is decided by the model, one token at a time, as it generates. **You need to reserve memory for a sequence whose length is only knowable once it has finished.** And you cannot defer the decision, because a request that runs out of cache halfway through cannot be paused politely. Everything computed so far is lost and the user gets an error mid-sentence.
-
-Three ways out, and every serving stack picks one.
-
-**Reserve the worst case.** Admit the request against `max_new_tokens`, the cap it is allowed to reach. Always safe, usually wasteful, because most answers are nowhere near their cap. If your answers run 200 tokens and your cap is 4096, you are holding twenty times the memory you need, for every concurrent request.
-
-This reframes a parameter most people treat as a safety rail. **`max_tokens` is a capacity reservation.** Setting it generously costs you concurrency directly, and it costs it whether or not any response ever gets that long.
-
-**Predict it.** Run a small model to estimate output length and schedule accordingly. Occasionally worth it, usually more machinery than the problem deserves.
-
-**Stop needing to know.** Allocate as the sequence actually grows, in small increments, so an unknown final length stops mattering. That is paged attention, and it is why the next section exists.
-
-## The trade you actually made
+## The trade you made
 
 **A KV cache does not make inference cheap. It converts a compute problem into a memory problem.** You stopped paying in FLOPs and started paying in gigabytes.
 
-Those two resources fail differently, and that is the whole point. Compute is elastic. A busy GPU makes everyone slightly slower, the queue lengthens, latency degrades, and the system keeps serving. **Memory is not elastic.** It fits or it does not. When the cache will not fit, the next session is not slow, it is refused.
+Those two resources fail differently, and that is the whole point. Compute is elastic. A busy GPU makes everyone slower, the queue lengthens, latency degrades, and the system keeps serving. **Memory is not elastic.** It fits or it does not. A server with no room left refuses the next session outright.
 
-So the number that decides how many people can use your product simultaneously is not the model's throughput. It is the memory left after the weights, divided by one conversation's cache.
+One number decides how many people can use your product at once: the memory left after the weights, divided by one conversation's cache.
 
 On an 80GB card holding a 16GB model, that is 64GB of headroom:
 
@@ -173,25 +164,39 @@ On an 80GB card holding a 16GB model, that is 64GB of headroom:
 | Llama-3-8B at 8K | 64 |
 | Mistral-7B at 32K | 16 |
 
-**Concurrency is a memory calculation, and the architecture decided most of it before your serving config got a vote.**
+Whoever picked the attention shape set that ceiling, months before anyone wrote a serving config, and no amount of tuning moves it.
 
 ---
 
 ## Spending that memory well
 
-Once memory is the binding constraint, the engineering moves there.
+Once memory is the binding constraint, that is where the engineering goes. Three techniques, and they build on each other: stop wasting the memory you allocate, then stop allocating memory you already have elsewhere, then make sure requests land where that memory lives.
 
-**Paged attention** fixes the reservation problem above. vLLM borrowed the idea from operating systems: chop the cache into fixed-size blocks, let a sequence's blocks live anywhere in memory, and keep a table mapping logical positions to physical blocks.
+### Paged attention
+
+You are holding two facts at once. The cache has to grow as the conversation does, and nobody knows how long the answer will be until it is finished.
+
+The simple allocator handles that by reserving a contiguous slab per sequence, big enough for the longest answer it is permitted to produce. It works, and it wastes almost all of it. Most answers stop far short of their cap, so the tail of every slab is held and never touched. Worse, the leftovers are the wrong shape: you have plenty of memory free, in fragments too small and too scattered for the next sequence to use. **You run out of memory with memory to spare.**
+
+vLLM took the fix from operating systems. Stop insisting the cache is contiguous.
+
+Chop it into fixed-size blocks, each holding a fixed number of tokens. Give every sequence a **block table** mapping its logical positions to whichever physical blocks it happens to own:
 
 ```
-sequence A  →  block 3 → block 7 → block 1
-sequence B  →  block 2 → block 9
-free list   →  [0, 4, 5, 6, 8, ...]
+logical position   0-15   16-31   32-47
+sequence A     →  block 3  block 7  block 1
+sequence B     →  block 2  block 9
+
+free list      →  [0, 4, 5, 6, 8, 10, ...]
 ```
 
-Blocks get allocated as the sequence actually grows rather than as it might grow. Nothing is reserved on speculation, nothing is stranded. It is virtual memory, applied to attention.
+A sequence's blocks are scattered and nothing cares, because attention reads them through the table. The allocator hands out a block when the sequence reaches it, so the unknown final length stops being a problem you have to solve in advance. The only waste left is the unfilled remainder of the last block, which is a few tokens rather than a few thousand.
 
-**Prefix caching** goes further and shares cache *between* requests.
+That is virtual memory, applied to attention. And like virtual memory, you get something beyond tidiness: **once a block is a first-class object rather than an offset into somebody's slab, two sequences can point at the same one.** Identical prefixes stop needing two copies, and a block only gets duplicated when one of them writes.
+
+Prefix caching runs on exactly that machinery.
+
+### Prefix caching
 
 Everything so far treats the cache as private to one generation. Often it should not be. Take a roleplay session in a sales training product: the system prompt, the persona the agent is playing, and the scenario context are byte-for-byte identical on every turn of that conversation. Only the newest exchange differs.
 
@@ -199,7 +204,7 @@ If the engine hashes prefixes and reuses matching blocks, turn two skips prefill
 
 The catch is that it demands an *exact* match from position zero, because attention state at position N depends on every token before it. One different character at the start and nothing downstream can be reused.
 
-Which is where the practical advice comes from. Suppose your system prompt opens like this:
+One practical consequence follows. Suppose your system prompt opens like this:
 
 ```
 Current time: 2026-08-21 14:32:07
@@ -207,21 +212,21 @@ You are playing a hesitant customer evaluating a term insurance plan.
 ...
 ```
 
-That timestamp changes every request. Position zero differs, so the hash differs, so **not one block of that long, otherwise identical prompt can be reused** and every request pays full prefill. Move the timestamp to the end, after everything stable, and the whole prompt above it becomes shareable. **A stable prompt prefix is a performance feature**, and prompts are usually written by people who have no idea they are making a serving decision.
+That timestamp changes every request. Position zero differs, so the hash differs, so **not one block of that long, otherwise identical prompt can be reused** and every request pays full prefill. Move the timestamp to the end, after everything stable, and the whole prompt above it becomes shareable. **A stable prompt prefix is a performance feature**, and the people writing prompts have no idea they are making a serving decision.
 
-### The trap that quietly deletes all of this
+### Cache-aware routing
 
 Everything above assumes one machine. You will not be running one machine.
 
 **The cache is local to the box that built it.** It is GPU memory on one replica, and no other replica can see it. So the second turn of a conversation only hits a warm cache if it lands on the same replica that served the first turn.
 
-Default load balancing has no idea any of this is happening. Round-robin and least-connections optimise for spreading load evenly, which is precisely the wrong objective here, because it spreads a conversation across the fleet. **On eight replicas, a session that should hit a warm cache every turn hits it roughly one turn in eight.**
+Default load balancing has no idea any of this is happening. Round-robin and least-connections optimise for spreading load, which is the wrong objective here, because it spreads a conversation across the fleet. **On eight replicas, a session that should hit a warm cache every turn hits it roughly one turn in eight.**
 
-The failure mode is nasty because nothing looks broken. No errors, no alerts, the cache hit rate metric on each replica is simply low and nobody knows what it should be. You built the shared prefix correctly, the engine supports prefix caching, the feature is enabled, and you get an eighth of the benefit.
+The failure mode is nasty because nothing looks broken. No errors, no alerts, the cache hit rate on each replica is low and nobody knows what it should be. You built the shared prefix right, the engine supports prefix caching, the feature is enabled, and you get an eighth of the benefit.
 
-The fix is **cache-aware routing**: route on cache locality rather than connection count, sending a session back to the replica that already holds its prefix. Which means prefix caching is only half a serving-engine feature. The other half lives in the load balancer, and the two halves are usually owned by different people.
+The fix is **cache-aware routing**: route on cache locality rather than connection count, sending a session back to the replica that already holds its prefix. So prefix caching is only half a serving-engine feature. The other half lives in the load balancer, and the two halves sit with different people.
 
-For a multi-turn product this is the difference between the optimisation working and the optimisation existing. A roleplay session is exactly the unit that should stick to one replica: same system prompt, same persona, same scenario, ten turns, all of it reusable and none of it reused if turn two goes somewhere else.
+For a multi-turn product this is the difference between the optimisation working and the optimisation existing. A roleplay session is the unit that should stick to one replica: same system prompt, same persona, same scenario, ten turns, all of it reusable and none of it reused if turn two goes somewhere else.
 
 ---
 
@@ -235,7 +240,7 @@ All three live in [adimyth/llm-inference-experiments](https://github.com/adimyth
 
 `kv_cache_timing.py` is the benchmark, and GPT-2 is the only model anything is run against. It downloads roughly 526MB on first use, then generates with and without the cache at each output length, three times per cell, and reports the median.
 
-`kv_cache_measured.py` produces the validation table. It reads the K and V tensors the model is actually holding and compares them to the formula.
+`kv_cache_measured.py` produces the validation table. It reads the K and V tensors the model holds and compares them to the formula.
 
 All three are short enough to read before running. The claim here is that generation is quadratic without a cache and linear with one, and that is checkable in about a minute rather than taken on trust.
 
@@ -247,8 +252,8 @@ The cache removed the recomputation. The other problem it leaves untouched, and 
 
 Generation is still one token per forward pass. Token 101 cannot be computed until token 100 exists, because the model has to know what it just said before deciding what comes next. That dependency is the definition of autoregressive generation, and no caching strategy touches it.
 
-So decode leaves the GPU doing what it is worst at: a wide parallel machine running a strictly sequential loop, one token at a time, mostly waiting on memory bandwidth rather than doing arithmetic.
+Decode leaves the GPU doing what it is worst at: a wide parallel machine running a sequential loop, one token at a time, waiting on memory bandwidth more than it does arithmetic.
 
-You cannot make generation parallel. You can make *verification* parallel, and it turns out that is enough.
+You cannot make generation parallel. You can make *verification* parallel, and that is enough.
 
 That is the next essay.
