@@ -20,7 +20,7 @@ export default function Home() {
     <>
       <Nav />
       <main className="min-h-screen bg-[#f4f1ea] px-6 pt-28 pb-16">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <IdentityStrip />
           <div>
             {essays.map((essay) => (
@@ -35,6 +35,14 @@ export default function Home() {
                     className="text-xl font-semibold text-[#111111] group-hover:text-[#2f2b29] transition-colors leading-snug mb-2"
                   >
                     {essay.title}
+                    {essay.draft && (
+                      <span
+                        style={{ fontFamily: "var(--font-inter)" }}
+                        className="ml-2 align-middle inline-block rounded-full border border-[#c2a24a] bg-[#f3e7c9] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#7d641f]"
+                      >
+                        Draft
+                      </span>
+                    )}
                   </h2>
                   <p className="text-sm text-[#4f4945] leading-relaxed mb-3">
                     {essay.description}

@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# private research notes, never publish (this repo is public)
+/notes/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -11,7 +11,12 @@ export type EssayMeta = {
   featured?: boolean;
   originalUrl?: string;
   publication?: string;
+  /** Set `draft: true` in frontmatter to keep an essay out of the published site.
+   *  Drafts still render locally under `next dev` so they can be worked on. */
+  draft?: boolean;
 };
+
+const INCLUDE_DRAFTS = process.env.NODE_ENV !== "production";
 
 const ESSAYS_DIR = path.join(process.cwd(), "content/essays");
 
@@ -26,6 +31,7 @@ export function getAllEssays(): EssayMeta[] {
       const { data } = matter(raw);
       return { slug, ...data } as EssayMeta;
     })
+    .filter((e) => INCLUDE_DRAFTS || !e.draft)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 

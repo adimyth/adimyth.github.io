@@ -33,6 +33,23 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify no drafts were exported
+        run: |
+          set -uo pipefail
+          fail=0
+          for f in content/essays/*.mdx; do
+            grep -qE '^draft:[[:space:]]*true' "$f" || continue
+            slug=$(basename "$f" .mdx)
+            title=$(grep -m1 '^title:' "$f" | sed 's/^title:[[:space:]]*//; s/^"//; s/"$//')
+            if grep -rqF "$slug" out/ || grep -rqF "$title" out/; then
+              echo "::error file=$f::Draft '$slug' leaked into the deploy output"
+              fail=1
+            else
+              echo "ok: draft '$slug' excluded"
+            fi
+          done
+          exit $fail
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

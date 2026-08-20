@@ -50,7 +50,7 @@ export default async function EssayPage({ params }: Props) {
         description={meta.description}
         date={meta.date}
       />
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f4945] hover:text-[#111111] transition-colors mb-12"
