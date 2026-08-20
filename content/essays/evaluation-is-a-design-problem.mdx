@@ -1,0 +1,226 @@
+---
+title: "Evaluation Is a Necessary Design Problem"
+description: "Speech recognition, synthesis, the language model and retrieval each admit a different kind of evidence. The arithmetic was never the hard part. Deciding what to measure was."
+date: "2026-08-12"
+readTime: "13 min read"
+featured: true
+---
+
+[PitchWiz](https://pitchwiz.ai/) puts a salesperson on a video call with an AI playing a customer. They pitch, the agent pushes back, and the session gets scored at the end. Underneath sit five moving parts: ASR turning the rep into text, a language model playing the customer, retrieval over approved product documents, speech synthesis, and the scoring pass. Twelve languages, most of them Indian, nearly all code-mixed with English in practice.
+
+Consider how that fails. ASR drops a product name, the agent replies vaguely because the name never reached its context, and the scoring pass marks the rep down for not mentioning it. **Three components, one failure, and only the last one looks guilty.** You can lose a week on prompts fixing something that happened in the first two hundred milliseconds. So every link needs its own instrument, and no two of them admit the same *kind*.
+
+## ASR: you author the answer
+
+This is the only component where ground truth is free, because you write it yourself.
+
+We created a golden set of twenty sentences per language, built rather than sampled:
+
+- Domain terminology from insurance, banking, motors and pharmaceuticals.
+- Brand names, product names and technical terms.
+- Numbers, dates and currency values.
+- Both simple and complex grammatical structures.
+- Questions, statements and instructions, which are prosodically different and get handled differently.
+
+Recorded by real speakers, for every Indic language we support.
+
+None of that is exotic. All of it is the actual work. A generic benchmark tells you which model reads audiobooks well, not whether "a 99.65% claim settlement ratio" survives intact.
+
+**Every candidate model or service runs the same golden set three times**, because the models themselves are not deterministic and one pass hides variance you will meet later in production. Output is a workbook, one sheet per language plus a summary averaging word error rate, character error rate and response time. Accuracy and latency sit next to each other because that is the real decision: two points more accurate and four seconds slower cannot go in a realtime path at all.
+
+### The column that actually gets used
+
+Every row carries a diff, rendered `reference phrase -> transcript phrase`, with explicit deletion and insertion markers. One sample row, for example:
+
+<div className="wide-table">
+
+| User Audio | Reference Text | Transcription Text | WER | CER | Differences | Time Taken |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hindi_sample_1.mp3` | गुड मॉर्निंग, सर। मैं एक इन्श्योरेंस एडवाइज़र हूँ मैक्स लाइफ़ इन्श्योरेंस से कॉल कर रहा हूँ। हमने हाल ही में एक नया टर्म इन्श्योरेंस प्लान लॉन्च किया है जिसका नाम है ऐक्सिस मैक्स लाइफ़ स्मार्ट टोटल एलीट प्रोटेक्शन टर्म प्लान। इसका 99.65% डेथ क्लेम पेड रेशियो है और इसमें 15% डिस्काउंट भी है। इसमें आपको डेथ बेनिफिट, ऐक्सिडेंट कवर और अन्य लाभ मिलते हैं। अगर आप इस प्लान के बारे में और जानना चाहते हैं तो कृपया बताएं। | गुड मॉर्निंग सर, मैं एक इंश्योरेंस एडवाइजर हूं, मैक्स लाइफ इंश्योरेंस से कॉल कर रहा हूं। हमने हाली में एक नया टर्म इंश्योरेंस प्लान लॉंच किया है, जिसका नाम है एक्सिस मैक्स लाइफ स्मार्ट टोटल एलीट प्रोटेक्शन टर्म प्लान। इसका 99.65% डेथ क्लेम पेड रेशियो है और इसमें 15% डिसकाउंट भी है। इसमें आपको डेथ बेनिफिट, एकसिडेंट कवर और अन्य लाव मिलते हैं। अगर आप इस प्लान के बारे में और जानना चाहते हैं तो कृपया बताएं। | 8.44% | 3.64% | 'इन' → 'इ'<br />'इज र' → 'इजर'<br />'इन' → 'इ'<br />'ह' → [DELETED]<br />'इन' → 'इ'<br />'न' → [DELETED]<br />'ऐक' → 'एक'<br />'स क' → 'सक'<br />'ऐक स' → 'एकस'<br />'भ' → 'व' | 4.21 seconds |
+
+</div>
+
+---
+
+## Text to Speech: there is no answer to author
+
+Same philosophy for choosing the text, plus deliberate phonetic combinations and pronunciation edge cases. *Sample rate and bit depth held constant across vendors*, so the comparison is about the model rather than about somebody's encoder.
+
+But here the instrument has to change completely, because **there is no correct waveform.** Nothing to diff against. The only available ground truth is a person listening.
+
+Two reviewers per language rate every sample on nine dimensions, one to five, where 1 is poor and 5 is excellent.
+
+| Tier | Dimension | The question the rater is answering |
+| --- | --- | --- |
+| Core | Pronunciation accuracy | How correctly are words pronounced according to language norms? |
+| Core | Naturalness | How natural and human-like does the speech sound? |
+| Core | Speech clarity | How clear and understandable is the speech? |
+| Secondary | Voice quality | How pleasant and appropriate is the voice? |
+| Secondary | Consistency | How consistent is the quality throughout the sample? |
+| Secondary | Emotional appropriateness | How well does the speech convey appropriate emotion and tone? |
+| Edge case | Numbers and date handling | How well are numerical expressions rendered? |
+| Edge case | Foreign word handling | How well are non-native terms pronounced? |
+| Edge case | Technical term accuracy | How accurately are domain-specific terms pronounced? |
+
+### The core tier
+
+Where the trade-offs live. Naturalness and clarity sound like one property and are not, because a model can buy one with the other. We scored a model high on clarity and low on naturalness, and the cause was a slow speaking pace: slowing down made every word easier to catch and made the whole thing sound less like a person. One averaged score hides that. Two columns, plus the words-per-minute recorded alongside, point straight at the pace.
+
+### The secondary tier
+
+Catches what survives a good core score. One model pronounced everything correctly and read with no variation, which on a conversational passage came out as narration rather than dialogue. Nothing else on the sheet sees that. Consistency asks about quality *across* the sample, and earns its place because one voice degraded audibly around twenty seconds into a single generation, which a rater scoring a short clip would never find.
+
+### The edge case tier
+
+A failure taxonomy rather than a set of metrics. The sentence holds together beautifully until it reaches a rupee figure or an English product name inside a Telugu clause, and then falls apart. Real speech here is code-mixed, and code-mixing is where these models break. We have had models mispronounce digits and skip the rupee symbol entirely while scoring well on pronunciation, because the rest of the sentence was fine.
+
+**Put together, the point of the nine is that a model can pass the tier everyone benchmarks and still be unusable.** Clear, correctly pronounced, and it narrates instead of talking, falls apart after twenty seconds, and cannot say a price.
+
+**Where absolute scores stopped discriminating we ran A/B testing**: paired samples from two models, played back to back, with the evaluator asked only which one they preferred and a preference percentage computed per pairing. People are far better at "which of these two" than at "is this a four or a five", and the pairing surfaces differences that two 4s would have hidden.
+
+We also ran a cheap automated check alongside the panel, mostly out of curiosity. **Reverse ASR**: take the golden set text, synthesise it, feed the audio straight back into an ASR service, and compute word error rate against the text you started from. If the transcriber is sound, whatever it fails to recover is something the synthesiser mangled. It is a round trip through two lossy systems, so we never weighted it heavily, but it costs nothing, needs no listener, and catches gross failures before you spend a human hour on them.
+
+---
+
+## The Language Model: no answer, and the system is stochastic
+
+Two problems at once. There is no reference output, and the thing under test does not give the same answer twice.
+
+The second has a boring fix most people skip. Three responses per model for the same input, where the input is the full triple of context, the user's speech, and the persona being played. One sample of a probabilistic system is an anecdote.
+
+The unit matters too. Score each response individually, then aggregate to compare models on that specific scenario rather than into an overall leaderboard. A model that handles an angry customer well and a confused one badly is a fact worth keeping, and averaging destroys it.
+
+The scenarios came from colleagues flagging sessions where the response was bad and the roleplay experience poor. Real complaints with the session attached. Nothing synthetic.
+
+### The rubric
+
+Six dimensions, and the reason this works at all is that every scale point is anchored in a sentence rather than a number.
+
+<div className="wide-table">
+
+| Dimension | What the evaluator is asked | Anchors |
+| --- | --- | --- |
+| Contextual relevance | Does the response logically fit within the context? Ignore the user's last line for this. | 1: contradicts context, impossible elements<br />3: loosely related, minor issues, generic<br />5: seamlessly integrates with the context |
+| Speech relevance | Does it directly address or logically follow the user's specific statement or question? | 1: off-topic, clearly misunderstood the user<br />3: vague answer, addresses a minor point only<br />5: understood and responds to the core of what was said |
+| Persona consistency | How well does the response match the defined AI persona? | 1: totally wrong tone, knowledge or personality<br />3: mostly right, some noticeable slips<br />5: exactly matches the defined persona |
+| Narrative progression | Does the response move the roleplay forward, stall it, or derail it? | 1: derails<br />2: stalls<br />3: minimal progress<br />4: good progress<br />5: advances significantly |
+| Coherence and fluency | Is it readable, grammatical, internally sensible, free of typos? | 1: nonsense, full of errors<br />3: understandable, noticeable errors or awkwardness<br />5: clear, natural language, no errors |
+| Safety and appropriateness | Explicit content, hate speech, aggression beyond the persona, harmful instructions? | OK<br />Warning (minor)<br />Issue (major)<br />description required if not OK |
+
+</div>
+
+Three of those six are doing something worth stealing.
+
+Contextual relevance and speech relevance are deliberately split, and the rater is told to ignore the user's last line for the first and consider only that line for the second. A model can be perfectly on-topic for the scenario while ignoring what the rep just asked it. Those fail differently and get fixed differently. Most rubrics collapse them into "relevance" and throw away the diagnosis.
+
+**Narrative progression is not a quality scale at all.** At the bottom, 1 is *derails* and 2 is *stalls*. Not different amounts of one failure, different failures. Going off the rails and going nowhere need opposite fixes, tighter grounding versus an agent that pushes. It is a behavioural scale wearing a numeric costume, and it is the dimension most specific to this product, because a roleplay that stalls teaches nobody anything even if everything else scores five.
+
+Safety is not scored one to five. It is OK, warning, or issue, with a written description required whenever it is not OK. Some judgements are genuinely categories, and a scale invents precision that is not there.
+
+### Who does the scoring
+
+That rubric was written for a person, and people do not scale. Three responses per model across a stack of scenarios is more reading than anybody will do twice. So the scoring moved to a model, and two things about that model matter.
+
+**It should be a reasoning model, and a bigger one than anything it judges.** Reasoning models were ruled out for generating responses, because they are slow and expensive and this is a realtime conversation. The judging runs offline, where slow and expensive costs nothing, so the constraint disappears.
+
+**But they are not interchangeable.** We tried a handful from OpenAI and Google, and they do not share a sense of where a boundary sits. Ask two of them to separate a 3 from a 4 on the same anchored rubric and they draw the line in different places, consistently, in a direction you can characterise if you look for it. So the first job was not scoring responses. It was working out how each candidate judge was biased, then picking the one whose bias we understood.
+
+One thing the judge is not allowed to decide. **Latency**, for the models being judged, mattered as much as quality. A pause the rep can feel breaks the illusion of talking to a customer, so a model that answers better and takes four seconds is not better. Quality and response time were always read off the same table.
+
+---
+
+## Retrieval: you manufacture the answer
+
+When the agent has to say something factual about a product, it retrieves from approved documents. The test set here is a corpus rather than a list of sentences: roughly fifty real documents, plan documents, policy information and benefit summaries, the same material the agent works from in production.
+
+Ground truth here cannot be authored the way a reference transcript can, but it *can* be manufactured. A golden set of roughly two hundred questions, sorted into nine categories.
+
+| Category | What it is testing |
+| --- | --- |
+| Guard rails check | Questions the agent should refuse or redirect rather than answer |
+| General information | Company and product basics that should always be available |
+| General plan-based questions | Questions about a plan that do not name a specific clause |
+| Factual questions | A specific verifiable figure, date or term |
+| Deep search | Answers buried far inside a long document |
+| Queries spanning multiple documents | Answers that only exist by combining two or more sources |
+| Overlapping queries | Questions several documents each partly answer |
+| Resource document retrieval | Returning the correct document itself, not a summary of it |
+| Conversation flow | Follow-ups that only make sense given earlier turns |
+
+Deep search, multi-document, overlapping, resource retrieval. Those are not subjects a salesperson asks about. They are the specific ways retrieval breaks, turned into question categories so each one gets tested on purpose.
+
+That is the difference between a test set and a sample of traffic. A sample tells you how you do on average. A set organised by failure mode tells you which failure you have.
+
+Each response is scored on several axes rather than one, and they are kept apart because they move independently. Our own numbers against that golden set, as of the last run:
+
+| Metric | What it counts | Our result |
+| --- | --- | --- |
+| Response accuracy | Responses matching the expected answer or intended behaviour | 95.5% |
+| Unsupported claim rate | Responses containing claims the approved sources do not support | 2.5% |
+| Citation support accuracy | Cited responses where the source actually supported the answer | 96% |
+| Out-of-scope handling accuracy | Unsupported questions handled without fabricating an answer | 96% |
+
+Collapse those into one headline and you get something in the mid-nineties that tells you nothing about which of the four is your problem. An answer can be correct and badly sourced, or well sourced and wrong, and those need different fixes.
+
+That third row is really two checks. A citation has to be **present**, and it has to actually **support the claim**. Separating them catches a specific and common failure: attaching a source that does not support the answer, purely so the answer looks sourced. Citation theatre. A correctness score cannot see it, because the answer might be right and the citation still fraudulent.
+
+What falls out of that is a behaviour specification rather than a number. When support is not available: say the information could not be verified, do not generate product details or figures that are not in the sources, do not attach an unrelated citation merely to have one, ask for context when the question is ambiguous, apply the configured guardrails.
+
+---
+
+## What runs continuously
+
+All four instruments share a hard limit. They answer "which of these should we use" extremely well and none of them answers "is this working for our users", which is a category difference rather than a flaw. They measure read speech from two volunteers into a clean microphone. Production is a nervous salesperson talking fast, on a video call, in a room with other people in it, code-switching mid-sentence. **A benchmark is a procurement instrument.**
+
+So something else has to run continuously, and it has to work without a right answer to compare against.
+
+Two things about the list below. **Almost none of these are failures.** Nothing threw an exception, and every one of these sessions completed successfully as far as any dashboard is concerned. They are user behaviours, and the trick is treating a behaviour as evidence.
+
+And **this is our list, for PitchWiz.** What counts as a signal falls out of what the product is. Ours is a spoken roleplay someone is assessed on, so ours is turn-taking, repetition, abandonment. A search product would watch query reformulation, a coding tool what gets accepted and then immediately deleted. The exercise transfers. The list does not.
+
+### What gets captured
+
+- Session completion, abandonment, retries and restarts.
+- Users repeating or rephrasing the same response.
+- The bot repeatedly asking for clarification.
+- Users correcting or contradicting the bot.
+- Long pauses, interruptions and turn-taking failures.
+- Low-confidence transcription or intent detection.
+- Recurring failures across specific languages, accents, scripts or scenarios.
+
+A rep who rephrases the same sentence three times is not filing a bug. They are behaving like somebody who was not understood, which is a better proxy for their experience than any benchmark score.
+
+### What those signals feed
+
+Aggregated across sessions, the recurring patterns are used to improve:
+
+- Prompts and conversation flows.
+- Training and evaluation datasets.
+- Speech recognition and language-processing pipelines.
+- Scoring and assessment models.
+- Retrieval and contextual understanding.
+- Guardrails and fallback behaviour.
+
+The second item on that list closes the circle. **Production signals do not just fix the system, they rewrite the test sets.** Every failure the benchmarks in this essay did not anticipate becomes a case they will catch next time.
+
+And then the rule that makes it a loop rather than a pile of dashboards: any change introduced to any component in the flow is validated against those internal test datasets before it goes to production.
+
+**The benchmarks are not the evaluation. They are the regression gate, and the production signals are what keep refilling them.**
+
+---
+
+## What all of this has in common
+
+Four components, four kinds of available evidence. Authored, absent, absent and stochastic, manufactured.
+
+Very little of what was decided in each case was a metric. Word error rate has been around since the 1960s. Mean opinion score is an average of human ratings. Cosine similarity is a dot product. None of the four frameworks differ from one another in their arithmetic, and none of that arithmetic took a day to write. What differed sat upstream of the number: which sentences, which speakers, which real complaints, which question categories, which dimensions on the rating sheet.
+
+The dimensions are the part worth staring at. Numbers, foreign words, technical terms. Overlapping queries, queries spanning multiple documents. Derails, stalls. None came out of a paper. Each is a record of something that broke in front of somebody, written down so it would get checked next time.
+
+A rubric is a memory of what has gone wrong. That is why a prefab evaluation suite disappoints rather than fails outright: its dimensions are perfectly sensible, they are just somebody else's scar tissue, and they will not contain the failure about to cost you a customer.
+
+That is also what the production loop is doing when it rewrites the test sets. It is not collecting metrics. It is extending the memory.
+
+Which means nearly all of the work happens before any number exists. The measurement is the last step and the cheap one.
+
+Deciding what to measure against, and inventing the dimensions to measure it on, is the rest. Every time, that answer came from looking at real broken output rather than from picking a framework off a shelf.
