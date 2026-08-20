@@ -9,6 +9,7 @@ import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
 import EssayImage from "@/components/EssayImage";
 import EssayVideo from "@/components/EssayVideo";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
+import { profile } from "@/lib/data";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -20,10 +21,30 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   try {
     const { meta } = getEssay(slug);
+    const url = `/essays/${slug}`;
     return {
       title: meta.title,
       description: meta.description,
-      alternates: { canonical: `/essays/${slug}` },
+      alternates: { canonical: url },
+      // The root layout defines a full openGraph/twitter object, and Next does not
+      // merge title/description into it. Without these the share card falls back
+      // to the site-level card instead of the essay.
+      openGraph: {
+        title: meta.title,
+        description: meta.description,
+        url,
+        siteName: profile.name,
+        type: "article",
+        publishedTime: meta.date,
+        authors: [profile.name],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: meta.title,
+        description: meta.description,
+        creator: "@adimyth",
+        site: "@adimyth",
+      },
     };
   } catch {
     return {};
