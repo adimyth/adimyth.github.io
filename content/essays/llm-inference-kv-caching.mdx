@@ -2,9 +2,8 @@
 title: "LLM Inference: KV Caching"
 description: "Generating a response costs quadratic work unless you cache. The KV cache fixes that and hands you a memory bill instead, and that bill is what decides how many people can use your product at once."
 date: "2026-08-15"
-readTime: "9 min read"
+readTime: "12 min read"
 featured: true
-draft: true
 ---
 
 Ask a language model for a 500 word answer. Without a cache, producing the 500th token costs about 500 times what the first one cost, because the model recomputes everything it worked out on the step before.
