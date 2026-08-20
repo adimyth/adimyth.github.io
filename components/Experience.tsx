@@ -1,6 +1,5 @@
 import { experience } from "@/lib/data";
 import CompanyLogo from "@/components/CompanyLogo";
-import { ArrowUpRight } from "lucide-react";
 
 export default function Experience() {
   return (
@@ -10,72 +9,66 @@ export default function Experience() {
           Experience
         </h2>
 
-        <div className="space-y-16">
+        <div>
           {experience.map((job, jobIdx) => (
-            <div key={jobIdx} className="grid md:grid-cols-[220px_1fr] gap-10">
-              {/* Company panel */}
-              <div className="md:sticky md:top-24 md:self-start">
+            <div
+              key={jobIdx}
+              className="flex items-start gap-5 py-7 border-b border-[#d9d4cc] first:border-t"
+            >
+              <div className="shrink-0">
                 <CompanyLogo logo={job.logo} company={job.company} />
-                {job.url ? (
-                  <a
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-lg font-bold text-[#111111] hover:text-[#333333] transition-colors mt-3"
-                  >
-                    {job.company}
-                  </a>
-                ) : (
-                  <p className="text-lg font-bold text-[#111111] mt-3">{job.company}</p>
-                )}
-                <p className="text-sm font-bold text-[#111111] mt-1">
-                  {job.role}
-                </p>
-                <span className="inline-block mt-2 text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full">
-                  {job.period}
-                </span>
-                <p className="text-sm text-[#4a4542] mt-2">{job.location}</p>
               </div>
 
-              {/* Projects */}
-              <div className="space-y-4">
-                {job.projects.map((project, projIdx) => (
-                  <div
-                    key={projIdx}
-                    className="p-6 rounded-2xl border border-[#d9d4cc] bg-white"
-                  >
-                    <h3
-                      style={{ fontFamily: "var(--font-lora)" }}
-                      className="text-lg font-semibold text-[#111111] mb-2"
-                    >
-                      {project.name}
-                    </h3>
-                    <p className="text-sm text-[#333333] leading-relaxed mb-3">
-                      {project.description}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {project.stack.map((tech) => (
-                        <span
-                          key={tech}
-                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f4f1ea] border border-[#d9d4cc] text-[#333333]"
-                        >
-                          {tech}
-                        </span>
-                      ))}
-                      {project.link && (
-                        <a
-                          href={project.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#4a4542] hover:text-[#111111] transition-colors ml-1"
-                        >
-                          View
-                          <ArrowUpRight className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 sm:gap-4">
+                  <div className="min-w-0">
+                    {job.url ? (
+                      <a
+                        href={job.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-lg font-bold text-[#111111] hover:text-[#333333] transition-colors"
+                      >
+                        {job.company}
+                      </a>
+                    ) : (
+                      <p className="text-lg font-bold text-[#111111]">{job.company}</p>
+                    )}
+                    <p className="text-sm text-[#4a4542] mt-0.5">{job.location}</p>
                   </div>
-                ))}
+                  <span className="inline-block shrink-0 text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full self-start">
+                    {job.period}
+                  </span>
+                </div>
+
+                {job.roles && job.roles.length > 1 ? (
+                  <ol className="relative mt-4 pl-6 space-y-3">
+                    <span
+                      aria-hidden
+                      className="absolute left-[3px] top-[10px] bottom-[10px] w-px bg-[#d9d4cc]"
+                    />
+                    {job.roles.map((r, i) => (
+                      <li key={i} className="relative">
+                        <span
+                          aria-hidden
+                          className={`absolute -left-6 top-[7px] w-[7px] h-[7px] rounded-full border ${
+                            i === 0
+                              ? "bg-[#333333] border-[#333333]"
+                              : "bg-[#f4f1ea] border-[#a39b90]"
+                          }`}
+                        />
+                        <p className="text-sm font-semibold text-[#111111] leading-snug">
+                          {r.title}
+                        </p>
+                        <p className="text-xs font-medium text-[#4a4542] mt-0.5">
+                          {r.period}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-sm font-semibold text-[#333333] mt-2">{job.role}</p>
+                )}
               </div>
             </div>
           ))}

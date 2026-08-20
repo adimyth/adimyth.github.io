@@ -90,8 +90,12 @@ type ExperienceEntry = {
   url?: string;
   logo: string;
   location: string;
+  /** Current or most recent title at the company. */
   role: string;
+  /** Full tenure at the company. */
   period: string;
+  /** Title progression, newest first. Omit for a single-title stint. */
+  roles?: { title: string; period: string }[];
   projects: { name: string; description: string; stack: string[]; link?: string }[];
 };
 
@@ -103,6 +107,12 @@ export const experience: ExperienceEntry[] = [
     location: "Mumbai",
     role: "Principal Engineer",
     period: "Jan 2022 to Present",
+    roles: [
+      { title: "Principal Engineer", period: "May 2026 to Present" },
+      { title: "Sr. Software Architect", period: "May 2024 to May 2026" },
+      { title: "Software Architect", period: "Apr 2023 to May 2024" },
+      { title: "Sr. Backend Engineer", period: "Jan 2022 to Apr 2023" },
+    ],
     projects: [
       {
         name: "Pitchwiz",
@@ -161,6 +171,10 @@ export const experience: ExperienceEntry[] = [
     location: "Mumbai",
     role: "Sr. ML Engineer",
     period: "Jul 2019 to Dec 2021",
+    roles: [
+      { title: "Sr. ML Engineer", period: "Jul 2020 to Dec 2021" },
+      { title: "ML Engineer", period: "Jul 2019 to Jul 2020" },
+    ],
     projects: [
       {
         name: "Life Insurance Underwriting Automation",
