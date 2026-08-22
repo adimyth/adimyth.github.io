@@ -35,9 +35,14 @@ sequenceDiagram
   participant R as Redis
   participant A as API
   participant C as Client
+  W->>W: decrypt once, build event
   W->>W: commit to Postgres
-  W->>R: PUBLISH user events
+  W->>R: PUBLISH message_arrived (with message)
   R->>A: message_arrived
-  A->>C: SSE event
-  C->>A: GET messages after_id
-  A->>C: new messages
+  A->>C: SSE event (message included)
+  C->>C: upsert message, no fetch
+  opt stream fell behind
+    A->>C: resync (id only)
+    C->>A: GET messages after_id
+    A->>C: new messages
+  end

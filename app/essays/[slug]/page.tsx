@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/atom-one-dark.css";
 import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
+import remarkUnwrapImages from "@/lib/remark-unwrap-images";
 import EssayImage from "@/components/EssayImage";
 import EssayVideo from "@/components/EssayVideo";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
@@ -119,7 +120,7 @@ export default async function EssayPage({ params }: Props) {
             components={{ img: EssayImage, EssayVideo }}
             options={{
               mdxOptions: {
-                remarkPlugins: [remarkGfm],
+                remarkPlugins: [remarkGfm, remarkUnwrapImages],
                 rehypePlugins: [rehypeHighlight],
               },
             }}
