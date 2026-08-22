@@ -1,0 +1,432 @@
+---
+title: "LLM Inference: Speculative Decoding"
+description: "A small model guesses ahead, a large model checks the guesses in bulk. The answer is identical and it arrives 1.8x sooner. The cost is compute you pay for and throw away."
+date: "2026-08-22"
+readTime: "18 min read"
+featured: true
+---
+
+[A KV cache](/essays/llm-inference-kv-caching) stops a model recomputing what it already worked out. It does nothing about the other problem, which is that token 101 cannot be produced until token 100 exists. Generation is a sequential loop, and a GPU is a machine built for doing thousands of things at once.
+
+That mismatch is expensive. Producing one token means moving all 14GB of this model's weights out of memory and through the chip that does the arithmetic, and the next token moves the same 14GB again. Most of that time is spent shifting weights around rather than computing with them.
+
+**Speculative decoding gets more than one token out of each of those passes.** A small model guesses several tokens ahead. The large model checks all of the guesses in a single forward pass and keeps the ones it agrees with. The answer is identical to what the large model would have written alone.
+
+Throughout, **`k` is how many tokens the small model guesses before the large one checks them.** It is the one dial in the technique, and most of this essay is about where to set it.
+
+Everything below runs on an M4 Pro: **Qwen2.5-7B-Instruct** as the target, **Qwen2.5-0.5B-Instruct** as the draft, fp16 on MPS, greedy, medians of three runs. The code is in [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments).
+
+---
+
+## Writing is slow, checking is fast
+
+A model writes one token at a time because each token depends on the one before it. There is no way around that ordering.
+
+Checking is a different operation, and it is worth taking in stages, because "check five guesses in one pass" did not sound possible to me when I first read it.
+
+### Checking four guesses means asking four questions
+
+Say the prompt is `The capital of France is` and the draft has guessed `Paris and it is`. To check those four guesses, the target has to answer four questions:
+
+- would I have written `Paris` after *The capital of France is*?
+- would I have written `and` after *The capital of France is Paris*?
+- would I have written `it` after *The capital of France is Paris and*?
+- would I have written `is` after *The capital of France is Paris and it*?
+
+Each question has a different input. Written out, they are four sentences:
+
+```
+The capital of France is
+The capital of France is Paris
+The capital of France is Paris and
+The capital of France is Paris and it
+```
+
+Four sentences, four runs of the model. That is where the cost seems to be.
+
+### The four sentences are already inside one sentence
+
+Look at that list again. Each line is the line above it plus one word, so all four are the opening of a single longer sentence:
+
+```
+The capital of France is Paris and it
+```
+
+Feeding it in means turning every word into a vector and handing the model the whole list at once:
+
+```
+[ vec(The), vec(capital), vec(of), vec(France), vec(is), vec(Paris), vec(and), vec(it) ]
+```
+
+Nothing goes in one at a time, and nothing goes in as four separate sentences. It is one list, and the model returns one output per entry in it. Each of the four questions has a position in that list. Question 1 lives at `is`, question 2 at `Paris`, question 3 at `and`, question 4 at `it`.
+
+Now bring in the rule about looking backwards. A word can see what came before it and nothing after. So the position sitting at `is` behaves **exactly as if the sentence stopped there**. The words `Paris and it` are to its right, and it cannot see any of them.
+
+The answer computed at that position *is* the answer to question 1, down to the same numbers you would get by running the model on the short sentence alone.
+
+**So one run of the long sentence produces all four answers.** There is no magic step. The four sentences are nested inside one another, and the backwards-only rule stops the longer ones contaminating the shorter ones.
+
+That is exactly what comes back. Feed the model eight words and it returns eight answers, one for each prefix:
+
+```
+input: 8 words -> 8 predictions, one pass
+
+after 'The'                                   -> ' following'
+after 'The capital'                           -> ' of'
+after 'The capital of'                        -> ' the'
+after 'The capital of France'                 -> ' is'
+after 'The capital of France is'              -> ' Paris'
+after 'The capital of France is Paris'        -> '.'
+after 'The capital of France is Paris and'    -> ' it'
+after 'The capital of France is Paris and it' -> ' is'
+```
+
+It is worth confirming the nesting claim rather than trusting it. Run the model on all eight words, then on only the first five, and compare what the early positions said:
+
+```
+pos 0:  all eight -> ' following'    first five -> ' following'   same
+pos 1:  all eight -> ' of'           first five -> ' of'          same
+pos 2:  all eight -> ' the'          first five -> ' the'         same
+pos 3:  all eight -> ' is'           first five -> ' is'          same
+pos 4:  all eight -> ' Paris'        first five -> ' Paris'       same
+
+largest numerical difference: 0.0000
+```
+
+Deleting three words off the end changed nothing about the first five answers, down to the last decimal. [`spec_one_pass.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_one_pass.py) prints both tables for any model and any text.
+
+### Why writing cannot do the same trick
+
+The nesting is what makes checking cheap, and it is also what writing cannot have.
+
+To ask "what follows *The capital of France is Paris*?" that sentence must already contain the word `Paris`. While writing, it does not. Producing `Paris` is the step you have not done yet, so the longer sentence you would need does not exist to be fed in. Every question needs the answer to the previous one, and they have to be asked one at a time.
+
+**A draft model breaks that loop by writing the words itself.** The guesses might be wrong, which is cheap and gets caught. What matters is that the long sentence now exists, so the target can grade every position in it at once instead of building it word by word.
+
+**So checking ten tokens is one forward pass, while writing ten tokens is ten.** That gap is what speculative decoding trades on.
+
+It only pays if a pass over ten tokens costs about what a pass over one costs. That is a claim about hardware, so it needs measuring rather than assuming. `spec_precondition.py` does it: warm a cache, then time a single forward pass against a varying number of new tokens.
+
+| Tokens checked | Forward pass | vs one token | Per token |
+| --- | --- | --- | --- |
+| 1 | 67.64 ms | 1.00× | 67.64 ms |
+| 2 | 71.64 ms | 1.06× | 35.82 ms |
+| 4 | 72.10 ms | 1.07× | 18.02 ms |
+| 8 | 78.06 ms | 1.15× | 9.76 ms |
+| 12 | 115.97 ms | 1.71× | 9.66 ms |
+| 32 | 142.95 ms | 2.11× | 4.47 ms |
+
+**Checking eight tokens costs 15% more than checking one.** The weights get read once per pass however many positions that pass covers, so the extra tokens ride along on a read already paid for. That discount is what speculative decoding spends, and the last two rows show it running out: past eight tokens the cost starts climbing again.
+
+To check this yourself, on any model and any hardware:
+
+```bash
+.venv/bin/python speculative-decoding/spec_precondition.py --model <any-causal-lm> --device mps --dtype float16
+```
+
+If the middle column stays near 1.0× as tokens rise, speculative decoding can pay on your setup. If it climbs steeply, it cannot, and no amount of tuning will fix that.
+
+## The idea
+
+Suppose the large model takes 3 seconds per token. Three tokens takes 9 seconds.
+
+Now put a small fast model in front of it. Given `The capital of France is`, the draft writes four tokens of its own:
+
+```
+Paris → and → it → is
+```
+
+The target then checks all four positions at once:
+
+```
+"The capital of France is"          → would I have said "Paris"?
+"... France is Paris"               → would I have said "and"?
+"... is Paris and"                  → would I have said "it"?
+"... Paris and it"                  → would I have said "is"?
+```
+
+One expensive pass instead of four.
+
+```
+Normal:        Large → Large → Large → Large
+
+Speculative:   Small → Small → Small → Small
+                                        ↓
+                                 Large checks
+                                 all of them
+```
+
+The target accepts guesses from the start until it hits one it disagrees with. It substitutes its own token there, and the rest of the block is discarded:
+
+```
+Draft:   A B C D
+Target:  ✓ ✓ ✗        → keep A B, replace C, throw away D
+```
+
+Every round produces at least one token, because the target's correction is free. It is already in the logits computed during checking.
+
+## The loop
+
+`transformers` computes acceptance inside the library and never exposes it, so the loop is written out here to report what it costs.
+
+Two things carry state between rounds.
+
+**`ids`** is everything written so far, the prompt plus every accepted token.
+
+**`pending`** is one token the target produced but has not yet read back in. Its cache entry is missing as a result. Putting it at the front of the next batch fills that gap, which is why the target runs once per round rather than twice.
+
+```python
+while tokens_generated < n_tokens:
+    # 1. the draft writes k tokens, one at a time, cheaply
+    candidates = []
+    for _ in range(k):
+        nxt = d_logit.argmax(-1, keepdim=True)
+        candidates.append(nxt)
+        d_out = draft(nxt, past_key_values=d_past, use_cache=True)
+        d_past, d_logit = d_out.past_key_values, d_out.logits[:, -1]
+    cand_ids = torch.cat(candidates, dim=-1)
+
+    # 2. ONE target pass over [pending, k candidates] -> k+1 sets of logits.
+    #    logits[i] is what the target would write at slot i.
+    t_out = target(torch.cat([pending, cand_ids], dim=-1),
+                   past_key_values=t_past, use_cache=True)
+    logits = t_out.logits
+
+    # 3. accept the longest run the target agrees with, from the start.
+    #    cumprod stops the count at the first mismatch.
+    choices = logits[0, :k].argmax(-1)
+    n_acc = int((cand_ids[0] == choices).cumprod(0).sum().item())
+
+    # 4. the target's own next token is free; step 2 already computed it
+    correction = logits[:, n_acc].argmax(-1, keepdim=True)
+    ids = torch.cat([ids, cand_ids[:, :n_acc], correction], dim=-1)
+
+    # 5. throw away cache entries for the rejected guesses in both models
+    crop_to(t_past, base_len + n_acc)
+    crop_to(d_past, base_len + n_acc)
+    pending = correction
+```
+
+Step 2 is where the saving happens. One call, `k+1` answers.
+
+Step 4 is what keeps the worst case tolerable. When the target rejects a guess, its own replacement is already sitting in the logits from step 2. No extra pass is needed to produce it.
+
+Every round therefore emits at least one token, even if the draft got everything wrong. At worst, speculative decoding becomes ordinary decoding with some wasted draft work on top.
+
+Step 5 is bookkeeping, and it is easy to leave out. Both models cached key/value entries for guesses that were rejected, and those entries describe a future that is not happening. Leaving them in corrupts everything after.
+
+## The output does not change
+
+This is what makes speculative decoding worth using rather than only fast.
+
+Everything here is greedy decoding, where the model always takes its top-ranked token. That makes the check a straight comparison: did the draft pick the same token the target ranked first? If yes the guess survives. If no it is thrown away and replaced with the target's own choice. Nothing the draft believes ever reaches the output on its own merit.
+
+The result is the same text the target would have written on its own, token for token.
+
+That is checkable, so the script checks it. Every run asserts that greedy speculative output is token-identical to greedy baseline output, and a mismatch fails the run rather than printing a warning. Set draft and target to the same model and acceptance comes out at 100% with nothing discarded, which is what two identical models must do.
+
+**Speculative decoding is not an approximation.** You get the same answer, sooner.
+
+## What it does
+
+Generating the next 64 tokens of ordinary prose, with the draft guessing 5 tokens at a time (`k=5`):
+
+| | Baseline | Speculative |
+| --- | --- | --- |
+| Wall time | 4.06s | 2.22s |
+| Tokens/sec | 15.75 | 28.85 |
+| Target forward passes | 64 | **15** |
+| Draft forward passes | 0 | 90 |
+| Draft tokens discarded | 0 | 21 |
+| Acceptance | — | 72.0% |
+
+That is 1.83× faster, and the text is identical. The mechanism sits in the third row. The expensive model ran 15 times instead of 64, because each of those 15 passes carried several tokens instead of one.
+
+## What it cost
+
+The fourth and fifth rows are the price.
+
+**The draft ran 90 times to save 49 runs of the target.** Trading 90 operations for 49 sounds like a bad deal until you price them. A draft pass costs 11.2 ms; a target pass costs 66.3 ms. So the 90 draft passes cost about 1.0 second, and the 49 target passes they replaced would have cost 3.2 seconds. That gap is the speedup.
+
+Then the other row. The draft produced 90 tokens and **21 of them were computed and then deleted**. Those tokens were generated, checked, rejected, and thrown away along with everything the draft built after them.
+
+A guess sitting behind a rejected guess is worthless however good it was, because it continues a sentence that is not happening.
+
+The trade is to spend a lot of cheap compute, waste a chunk of it, and buy back a smaller amount of expensive compute.
+
+> *Whether that pays comes down to one thing.* **How often the draft is right.** *Everything else in this essay is a consequence of that number.*
+
+## Guessing further ahead stops helping
+
+The obvious move is to raise `k`. Guess sixteen tokens ahead instead of five and save even more target passes.
+
+<div className="wide-table">
+
+| k | Speedup | Accepted | Discarded | Target passes | Draft passes |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 1.20× | 91.2% | 3 | 34 | 68 |
+| 2 | 1.44× | 82.0% | 9 | 25 | 75 |
+| 3 | 1.63× | 78.3% | 13 | 20 | 80 |
+| 4 | 1.64× | 69.4% | 22 | 18 | 90 |
+| **5** | **1.83×** | 72.0% | 21 | 15 | 90 |
+| 6 | 1.79× | 66.7% | 28 | 14 | 98 |
+| 8 | 1.75× | 58.3% | 40 | 12 | 108 |
+| 10 | 1.47× | 57.3% | 47 | 11 | 121 |
+| 12 | 1.36× | 48.5% | 68 | 11 | 143 |
+| 16 | 1.13× | 32.4% | 119 | 11 | 187 |
+
+</div>
+
+![Speedup, acceptance and waste against k](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/speculative-decoding/results/k_sweep_light.png)
+
+Target passes bottom out at 11 and stop falling. Draft passes keep climbing to 187. Discarded tokens go from 3 to 119. Past `k=5` you are buying waste rather than speed.
+
+Two forces cause that, and they work against you at the same time.
+
+### Being right five times in a row is rare
+
+The fourth guess only counts if the first three were also right, because everything behind a rejection is discarded. At 72% per token, four correct in a row happens 27% of the time and eight in a row happens 7%. Guess far enough ahead and most of what you produce sits behind a mistake.
+
+[Leviathan et al.](https://arxiv.org/abs/2211.17192) put a number on it. Write `a` for the acceptance rate: the chance that any single guess is the one the target would have written. Expected tokens accepted per round is then
+
+```
+(1 - a^(k+1)) / (1 - a)
+```
+
+That expression climbs with `k` and then flattens out at `1/(1-a)`, however large `k` gets.
+
+Draft cost does not flatten. Every extra token of lookahead is one more draft pass, every round, whether it survives or not.
+
+**The benefit has a ceiling. The cost does not.** At 72% acceptance the ceiling is 3.6 accepted tokens per round. So `k=16` can never average better than 3.6, however often you run it, and it pays for sixteen guesses each time to get there.
+
+### And the checking stops being free
+
+The other force is the discount from the first table, and it runs out.
+
+Everything above spends it: eight tokens checked for 15% more than one. Past that point the pass stops being nearly free. At `k=12` verification costs **1.71×** a single token rather than 1.07×, and at `k=16` it costs **2.00×**.
+
+The cheap checking therefore gets expensive at the same moment acceptance collapses. Both halves of the trade turn against you at once, which is why the curve falls at high `k` rather than levelling off.
+
+> *Setting `k` is a balance between two quantities moving in opposite directions.* **Raise it and each round covers more ground, but the draft is right less often and the check costs more.** *The best `k` is wherever those two stop cancelling, and it is a property of your models, your hardware and your text rather than a constant.*
+
+`k=5` is where they cross here, and it is a common setting. vLLM's documentation uses [`num_speculative_tokens: 5`](https://docs.vllm.ai/en/stable/features/spec_decode.html) in its examples. HuggingFace does not expose a fixed `k` at all, shipping an adaptive schedule that raises the lookahead by 2 when a whole block is accepted and backs off when it is not.
+
+---
+
+## Acceptance is the whole game
+
+Everything above is one prompt. Change the text and the numbers move a long way.
+
+Acceptance is how often a 0.5B model guesses what a 7B model would have said, and that depends on how predictable the text is.
+
+The five prompts live in [`workloads.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/workloads.py) and [`spec_bench.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_bench.py) runs them, so this table is reproducible rather than described.
+
+| Workload | Speedup | Accepted | Discarded |
+| --- | --- | --- | --- |
+| code | **2.40×** | 98.2% | 1 |
+| repetitive | 2.39× | 100% | 0 |
+| open prose | 1.82× | 72.0% | 21 |
+| factual list | 1.60× | 60.0% | 34 |
+| structured | 1.36× | 47.0% | 53 |
+
+![Speedup by workload](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/speculative-decoding/results/workloads_light.png)
+
+Same models, same hardware, same `k`. The text alone moves the result from 1.36× to 2.40×.
+
+Code is the row worth dwelling on. Syntax constrains what can come next: after `def mul(a, b):\n    return` there are not many sensible continuations, and a 0.5B model finds the right one 98% of the time. One discarded token out of 90 drafted.
+
+This is one reason speculative decoding turns up in code assistants early. Code is a workload where a small model can keep up with a large one.
+
+The repetitive row is the sanity check rather than a result. A pattern the draft can memorise gives 100% acceptance and shows the ceiling of the technique on this pair, which is about 2.4×.
+
+---
+
+## Choosing the draft, and what I got wrong
+
+My first attempt used GPT-2 as the draft for GPT-2-large. A 6.2× parameter ratio, same family, same tokenizer. It measured **0.69×**, slower than doing nothing, and it took a while to understand why.
+
+**The ratio that matters is cost in time, not parameters.** GPT-2 is 6.2× smaller than GPT-2-large but only about 5× faster per forward pass. At that size a GPU spends most of its time launching work rather than doing it. Five draft passes then cost 91% of one verification pass, and there is no `k` that recovers from that.
+
+The literature is direct about this. Drafts run **1/10 to 1/50** of the target. Leviathan et al. pair T5-XXL at 11B with T5-small at 60M, a **183× ratio**, for 3.4×. Their smaller draft beat their larger one, 3.4× against 2.8×, despite agreeing less often, because it costs so much less to run.
+
+Our pair is 14× in parameters and about 6× in time, which is at the low end of workable. Measured as Leviathan's cost coefficient, the draft costs 0.17 of the target per pass. His condition for any speedup to exist is that acceptance must exceed that ratio. At 0.72 against 0.17 there is room, which is why this pair works and the GPT-2 pair did not.
+
+### A bigger draft is worse, which surprised me
+
+If acceptance is the whole game, a better draft should win. Qwen2.5 has a 1.5B, three times the size of the 0.5B and closer to the target it is guessing for. I expected it to be faster.
+
+| Draft | `k` | Speedup | Accepted | Discarded | Cost per pass | `c` |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.5B | 3 | 1.64× | 78.3% | 13 | 11.2 ms | 0.166 |
+| 0.5B | 5 | **1.84×** | 72.0% | 21 | 11.2 ms | 0.166 |
+| 1.5B | 3 | 1.32× | 84.2% | 9 | 21.3 ms | 0.316 |
+| 1.5B | 5 | 1.42× | 78.6% | 15 | 21.3 ms | 0.316 |
+
+The bigger draft does everything you would hope. It agrees more often, 78.6% against 72.0%. It wastes less, 15 discarded tokens against 21. It is a better guesser by every measure in the table.
+
+And it is slower anyway, **1.42× against 1.84×**. The last column says why. Tripling the draft's size bought 6.6 percentage points of acceptance and cost nearly double per pass, 21.3 ms against 11.2 ms, pushing `c` from 0.17 to 0.32. The draft runs `k+1` times a round, so that extra cost is paid five or six times over, against one round of slightly better guessing.
+
+Leviathan et al. found the same thing and I did not believe it until I ran it. Their T5-small draft beat their T5-base draft, 3.4× against 2.8×, despite the smaller model agreeing less. **What you want from a draft is cheapness, enough that being wrong costs little.**
+
+### One pairing I wanted to test and could not
+
+GPT-2 as the draft, Qwen as the target. Two unrelated families, very different sizes, and it would have made a nice extreme.
+
+It cannot be done, because **the draft and the target must share a tokenizer**. Step 3 compares integers: did the draft propose the token the target would have written? Two tokenizers number words differently, so the same integer means different things.
+
+```
+GPT-2 : 464 -> "The"
+Qwen  : 464 -> "\t\t\t\t"
+```
+
+Feed a GPT-2 draft's 464 to a Qwen target and you are asking whether Qwen would have written four tabs. It would not, and nor would it for nearly every other guess, so acceptance collapses to noise. Nothing errors, which is what makes it hard to spot: the IDs are valid in both vocabularies and the loop runs to completion, producing correct output very slowly.
+
+That narrows the field. The draft has to be small enough to be cheap, close enough to agree often, and built on the target's tokenizer. In practice that means picking from a model family that ships several sizes.
+
+[`spec_drafts.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_drafts.py) runs the comparison above.
+
+## Speculative speculative decoding
+
+The two models take turns. While the draft writes its five guesses, the target has nothing to do. While the target checks them, the draft has nothing to do. They are never both working, so about half the machine is sitting idle at any moment.
+
+The fix is to stop waiting. When the draft hands over its guesses, rather than pausing for the verdict it assumes most of them will be accepted and starts writing the next batch straight away. If the assumption was right, the next batch is ready the instant the target finishes, and the two models have been working side by side instead of alternating.
+
+PEARL ([arXiv 2408.11850](https://arxiv.org/abs/2408.11850)) calls the taking-turns the mutual waiting problem, and reports 1.50× on top of ordinary speculative decoding for removing it.
+
+I have no numbers for it, and the reason is a hardware limit rather than a lack of trying. Overlapping the two models needs them running at the same instant, and a single Apple GPU has one command queue that serialises whatever you give it. Running both models across two threads measured **0.93×**, a little slower than taking turns, because the work still queued end to end and paid for thread coordination as well. Real numbers need two devices, or a GPU with concurrent streams.
+
+Experiments for that are in progress.
+
+## What is not here
+
+**Sampling.** Everything above is greedy, where the target always takes its top-ranked token and the check is a straight comparison. Production usually samples at a temperature instead, so the target has no single right answer to compare against and the accept rule has to work in probabilities. [Leviathan et al.](https://arxiv.org/abs/2211.17192) give that rule, and it keeps the same guarantee that output matches what the target alone would have produced. I did not implement it, so every number here is the greedy case.
+
+**Batching.** These are single-request numbers. Speculative decoding buys latency for one request by spending extra compute, and batching wants that compute for other requests. At high concurrency the two fight, and what helps one user can hurt the fleet.
+
+---
+
+## Running it yourself
+
+Every number above comes from [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments).
+
+[`spec_one_pass.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_one_pass.py) prints one prediction per position from a single pass, and shows that truncating the input leaves the earlier answers untouched.
+
+[`spec_precondition.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_precondition.py) measures the cost of a forward pass against how many tokens it checks, which is the discount the whole technique spends.
+
+[`spec_decode.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_decode.py) holds the loop, and asserts on every run that greedy speculative output matches greedy baseline exactly.
+
+[`spec_bench.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_bench.py) runs the `k` sweep and the workload sweep as medians and writes the results as JSON, with the prompts in [`workloads.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/workloads.py) so the workload table is reproducible rather than described.
+
+[`spec_drafts.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_drafts.py) compares two drafts against one target.
+
+Two details worth copying if you build your own. **Synchronise before stopping the clock**, because MPS and CUDA queue work asynchronously and an unsynchronised timer measures how fast Python queued it rather than how long it took. This produced a 0.15× for me and made the technique look broken. And **warm the models before timing**, because the first forward pass pays initialisation costs that otherwise land inside the measurement.
+
+---
+
+## What it comes to
+
+A large model on this laptop writes 15.75 tokens per second. Let a small model guess five tokens ahead and let the large one check them in bulk, and the same text arrives at 28.85 tokens per second. On code it is 2.4×.
+
+The cost is real and easy to miss: 90 cheap forward passes and 21 tokens computed and deleted, to save 49 expensive ones.
+
+Generation cannot be made parallel. Verification can, and that is enough.
