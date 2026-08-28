@@ -1,0 +1,322 @@
+---
+title: "LLM Inference: Post-Training Quantization"
+description: "Shrinking a model's weights after training costs some quality and buys back size and speed. Four methods measured against one fp16 baseline on one laptop: what each does differently, what it costs on perplexity and MMLU, and why measuring perplexity consistently is harder than it sounds."
+date: "2026-08-29"
+readTime: "18 min read"
+featured: true
+draft: true
+---
+
+A trained model's weights sit in memory as fp16 or bf16 numbers, two bytes each. An 8B parameter model is 8 billion of those numbers, roughly 15GB, and every one of them has to move through the chip to produce a single token. Moving that 15GB from memory to the compute units and back, once per token, is where the time goes. The arithmetic on top of it is cheap by comparison.
+
+**Quantization shrinks those numbers after training is already done.** Round each weight down to fewer bits, 8, 5, 4, and there's less to move. A checkpoint a third of the size moves a third of the data per token, which is most of why a quantized model generates faster. It also gets worse at its job, and how much worse comes down to how you round.
+
+Four methods round differently, and this essay puts all four through the same measurements: round-to-nearest, GGUF's k-quants, Apple's MLX, and HQQ. All four quantize the same model, **Llama 3.1 8B Instruct**, on the same machine, an M4 Pro with 48GB, and every number below sits against that model unquantized. Quality comes from two numbers, perplexity over the wikitext-2 test split and accuracy on a fixed 50-question MMLU subset that every checkpoint sees identically.
+
+Every script and every result behind the numbers below lives at https://github.com/adimyth/llm-inference-experiments
+
+---
+
+## Post-training, not quantization-aware
+
+Two families get grouped under "quantization" and they are not the same kind of thing.
+
+**Post-training quantization (PTQ)** takes a finished model and rounds its weights. No gradients, no backward pass, no retraining. Some methods use a small calibration set to decide *how* to round more carefully; none of them touch the model's actual training.
+
+**Quantization-aware training (QAT)** puts fake-quantization operations into the forward pass during training or fine-tuning, so the model's own weights adapt around the rounding error. It needs the training pipeline and a real training run.
+
+Everything in this essay is post-training.
+
+---
+
+## The shared starting point
+
+Every result below is measured against one baseline: **Llama 3.1 8B Instruct in fp16**, unquantized. Its measurements on the M4 Pro are:
+
+| Metric | Llama 3.1 8B, fp16 |
+| --- | --- |
+| Size on disk | 14.97 GB |
+| Generation (tg128) | 15.5 t/s |
+| Prompt processing (pp512) | 315.5 t/s |
+| Perplexity, wikitext-2 | 7.395 \* |
+| MMLU, 50q subset | 82.0% (41/50) |
+
+\* Measured a second way as well, giving 7.365. Two tools are needed because neither reads every format, and the last section of this essay covers what separates them.
+
+RTN and the k-quants below need that model in GGUF format first; MLX and HQQ quantize straight from the HF checkpoint instead. llama.cpp ships a conversion script, `convert_hf_to_gguf.py`, that reads the checkpoint and writes an **unquantized f16 GGUF**, no rounding yet, just a format change. For this Llama 3.1 8B baseline, that's a 14.97GB file and takes about 40 seconds.
+
+RTN and the k-quants all start from that one file, built once and quantized four separate ways.
+
+---
+
+## RTN: round to nearest, and nothing else
+
+Split the weights into blocks of 32. Each block gets one shared **scale**, a single number, call it `d`. Every weight in the block gets replaced by two things: `d` (stored once, shared by all 32) and a small integer **code**, stored per weight in 4 bits. To read a weight back later, multiply: `weight ≈ code × d`.
+
+`d` is set from the block's own largest weight, so nothing in the block overflows what 4 bits can hold. A 4-bit signed code can be any whole number from -8 to 7, so `d = max(abs(weights)) / 8`.
+
+**A block of four, to see the mechanism** (real blocks hold 32; four keeps the table small):
+
+| Weight | `weight / d` | Code (rounded) | Dequantized (`code × d`) |
+| --- | --- | --- | --- |
+| 0.90 | 6.00 | 6 | 0.90 |
+| -1.20 | -8.00 | -8 | -1.20 |
+| 0.30 | 2.00 | 2 | 0.30 |
+| -0.05 | -0.33 | 0 | 0.00 |
+
+`d = 1.20 / 8 = 0.15`, set by the largest weight, -1.20. The three larger weights come back almost exactly. The smallest one, -0.05, rounds to code 0 and vanishes.
+
+**RTN's error is a flat ±d/2, the same for every weight in the block, whether that weight started out big or tiny.** A quiet, near-zero weight and a loud one both get rounded to the nearest multiple of 0.15 here, so the quiet one loses a much bigger fraction of itself.
+
+```bash
+llama-quantize model-f16.gguf model-q4_0.gguf Q4_0
+```
+
+Quantizing the 8B model took **9 seconds**.
+
+| Metric | fp16 | RTN `Q4_0` |
+| --- | --- | --- |
+| Size on disk | 14.97 GB | 4.34 GB |
+| Generation (tg128) | 15.5 t/s | 48.5 t/s |
+| Prompt processing (pp512) | 315.5 t/s | 377.8 t/s |
+| Perplexity, wikitext-2 | 7.395 | 7.804 (+5.5%) |
+| MMLU, 50q subset | 82.0% (41/50) | 76.0% (38/50) |
+
+RTN shrinks the checkpoint by 71% and triples decode throughput, for +5.5% perplexity and six points of MMLU. That MMLU drop is 3 questions out of 50 changing from right to wrong, which sits close to the noise floor of a subset that small. Read it as directional, and lean on perplexity for the fine-grained comparisons.
+
+The speed measurements tell a more predictable story. Decode is memory-bandwidth bound: producing one token means moving the entire checkpoint through memory, so a checkpoint a third of the size moves a third of the data. Prompt processing handles many tokens together and reuses each loaded weight across them, making it primarily compute-bound on this hardware. Quantization still helps, 1.2x here, but not nearly as much as it helps decode, 3.1x.
+
+---
+
+## GGUF k-quants: an offset and scale at the same size
+
+RTN gives every weight in a 32-weight block one shared scale. That's the weak spot: the scale has to be sized for the block's largest magnitude, so a quiet weight can get crushed towards zero, the way `-0.05` did above. k-quants keep the same 32-weight grouping, but store an offset alongside the scale, so their 16 codes cover the block's actual minimum-to-maximum range rather than a symmetric range around zero. The challenge is fitting that second number into the same storage budget.
+
+**What "sub-block" means here.** A sub-block is exactly the same size as an RTN block: 32 weights. It's called "sub" because eight of them get bundled together into a bigger container, a **super-block** of 256 weights, covered further down. For now, ignore the super-block and look at what one sub-block does differently from RTN.
+
+**A weight needs two numbers to place it, not one.** RTN reads a weight back as `code × d`, always anchored at zero. k-quants read a weight back as:
+
+```
+weight ≈ code × scale + offset
+```
+
+`code` is the same kind of small integer as before, but now unsigned, 0 to 15 (4 bits gives 16 possible codes). `scale` and `offset` are two numbers computed once per sub-block: `offset` is just the sub-block's smallest weight, and `scale` is sized so that code 15, the largest available code, lands exactly on the sub-block's largest weight:
+
+```
+scale  = (largest weight − smallest weight) / 15
+offset = smallest weight
+```
+
+**Two sub-blocks, shown by their endpoints.** Each real sub-block holds 32 weights; the table shows only the smallest and largest, because those are the two values that set its `scale` and `offset`. A is the four-weight example above, shown only at its endpoints. B is another 32-weight stretch of the same weight matrix whose values are much smaller in magnitude, from -0.03 to 0.04:
+
+| | Weight | `scale` | `offset` | Code | Dequantized |
+| --- | --- | --- | --- | --- | --- |
+| Sub-block A | -1.20 | 0.14 | -1.20 | 0 | -1.20 |
+| Sub-block A | 0.90 | 0.14 | -1.20 | 15 | 0.90 |
+| Sub-block B | -0.03 | 0.0047 | -0.03 | 0 | -0.03 |
+| Sub-block B | 0.04 | 0.0047 | -0.03 | 15 | 0.04 |
+
+Sub-block A's `scale = (0.90 − (−1.20)) / 15 = 0.14`. Sub-block B, computed the same way from its own smallest and largest weight, gets its own much smaller `scale = 0.0047`, sized for numbers a hundred times quieter than A's. `Q4_0` would also give B its own 32-weight block and scale; it would not make B share A's scale. The difference is that RTN uses one symmetric scale around zero, while `Q4_K` stores both a scale and an offset. Here the latter maps B's two endpoints exactly to codes 0 and 15.
+
+**Keeping two numbers without spending more.** `Q4_0` spends one fp16 scale, 16 bits, for every 32 weights. Eight blocks therefore use 128 metadata bits for 256 weights. A `Q4_K` block needs both a scale and an offset, which would naively cost 256 bits.
+
+llama.cpp's fix: group eight sub-blocks into one **super-block of 256 weights**. It compresses each sub-block's scale and offset to 6 bits, for 6 bits × 2 × 8 = 96 bits, then stores two fp16 super-block scales to decode those compressed values, another 32 bits. That is 128 bits in total: exactly the metadata budget `Q4_0` uses for eight ordinary blocks. The weight codes remain 4-bit in both formats, so both work out to 4.5 bits per weight.
+
+This two-level structure is the defining mechanism of the formats llama.cpp calls *k-quants*. The `K` in `Q4_K` is a family label, not a name for the compressed scale and offset; the original implementation does not document an expansion of the letter.
+
+**`_M` is a separate decision: which tensors get more bits.** Not every part of the model loses equally from rounding. `Q4_K_M` quantizes most of the model with the Q4_K scheme above, but bumps two specific tensors, the attention output projection and the FFN "down" projection, up to a chunkier 6-bit scheme (`Q6_K`) for roughly half the model's layers, mostly the ones nearest the start and the end of the network. The exact rule for which layers is fixed in [llama.cpp's quantization source](https://github.com/ggml-org/llama.cpp/blob/master/src/llama-quant.cpp), not computed freshly for this specific model. `Q5_K_M` follows the same idea from a 5-bit base.
+
+```bash
+llama-quantize model-f16.gguf model-q4_k_m.gguf Q4_K_M
+llama-quantize model-f16.gguf model-q5_k_m.gguf Q5_K_M
+llama-quantize model-f16.gguf model-q8_0.gguf   Q8_0
+```
+
+All three quantize from the same f16 GGUF that RTN used, each pass taking well under a minute.
+
+| Metric | fp16 | `Q4_K_M` | `Q5_K_M` | `Q8_0` |
+| --- | --- | --- | --- | --- |
+| Size on disk | 14.97 GB | 4.58 GB | 5.34 GB | 7.95 GB |
+| Generation (tg128) | 15.5 t/s | 44.9 t/s | 31.2 t/s | 28.1 t/s |
+| Prompt processing (pp512) | 315.5 t/s | 359.9 t/s | 329.4 t/s | 362.6 t/s |
+| Perplexity, wikitext-2 | 7.395 | 7.622 (+3.1%) | 7.467 (+1.0%) | 7.399 (+0.05%) |
+| MMLU, 50q subset | 82.0% (41/50) | 78.0% (39/50) | 80.0% (40/50) | 80.0% (40/50) |
+
+`Q4_K_M` costs almost the same size as RTN's `Q4_0`, 4.58GB against 4.34GB. For that near-identical budget it buys back nearly half of RTN's perplexity gap and an extra MMLU question. Same bits spent, smarter arithmetic, real improvement, no extra cost.
+
+`Q5_K_M` sits between `Q4_K_M` and `Q8_0` on size and on perplexity, which is what a 5-bit base type spending more bits than `Q4_K_M` and fewer than `Q8_0` should do. It ties `Q8_0` on MMLU and trails both on prompt processing, neither of which follows from the bit count. At 5.34GB it's a third bigger than `Q4_K_M`, and its perplexity cost drops to +1.0%, a third of `Q4_K_M`'s +3.1%. It's the pick if `Q4_K_M`'s quality cost feels too high but `Q8_0`'s size doesn't feel worth it.
+
+`Q8_0` lands at 7.399 perplexity against fp16's 7.395, close enough to call unquantized. Eight bits per weight barely costs anything, which is why `Q8_0` is the format people reach for when size isn't the binding constraint.
+
+The progression by precision, fp16 < `Q8_0` < `Q5_K_M` < `Q4_K_M`, holds on perplexity in exactly the order you'd expect: more bits, less rounding. `Q5_K_M` and `Q8_0` tie on MMLU at 80.0% despite `Q8_0` being closer on perplexity. Fifty questions is a coarse enough sample that a tie like that is expected, not a sign the two checkpoints are equivalent.
+
+---
+
+## MLX: built for this hardware, and not automatically cheaper
+
+MLX is Apple's own array framework, unified memory, native Metal. Its default quantization uses the same `weight ≈ code × scale + offset` idea k-quants use, one scale and offset per group of weights, but with a bigger group and no compression on the scale itself.
+
+**The same sub-block A from before, quantized MLX's way.** MLX's default group is 64 weights, twice k-quants' 32. Imagine sub-block A sitting inside a 64-weight group whose other 60 weights happen to span a similar range:
+
+| | Weight | `scale` | `offset` | Code | Dequantized |
+| --- | --- | --- | --- | --- | --- |
+| MLX group | -1.20 | 0.14 | -1.20 | 0 | -1.20 |
+| MLX group | 0.90 | 0.14 | -1.20 | 15 | 0.90 |
+
+That's numerically identical to k-quants' sub-block A, because this group's largest and smallest weight happen to match sub-block A's. The difference shows up when the group isn't uniform. k-quants would give a *second* group of 32, the quiet one, its *own* scale, the way sub-block B got `scale = 0.0047` above. MLX's 64-weight group can't split that finely: one scale covers twice as many weights, so a group straddling both a loud region and a quiet one has to compromise between them, the same problem RTN had, just at half of RTN's resolution.
+
+MLX also stores its scale and offset uncompressed per group, rather than squeezing them to 6 bits the way k-quants do. Its per-group bookkeeping costs *more* than k-quants', not less. **The gap below isn't about how carefully MLX stores its scale.** It's the group size.
+
+```bash
+mlx_lm.convert --hf-path <model> --mlx-path out/ -q --q-bits 4 --q-group-size 64
+```
+
+| Metric | fp16 | RTN `Q4_0` | MLX 4-bit |
+| --- | --- | --- | --- |
+| Size on disk | 14.97 GB | 4.34 GB | 4.22 GB |
+| Generation (tg128) | 15.5 t/s | 48.5 t/s | 52.8 t/s |
+| Prompt processing (pp512) | 315.5 t/s | 377.8 t/s | 359.7 t/s |
+| Perplexity, wikitext-2 | 7.365 \* | 7.804 (+5.5%) | 7.949 (+7.9%) |
+| MMLU, 50q subset | 82.0% (41/50) | 76.0% (38/50) | 76.0% (38/50) |
+
+\* MLX's perplexity sits against a second fp16 baseline, 7.365 instead of 7.395. The last section of this essay explains why there are two and why the percentages still compare.
+
+MLX comes out a shade smaller than RTN, a shade faster to decode, and about two points worse on perplexity. Both checkpoints go by the name "4-bit." The phrase describes bits per weight and says nothing about the grouping those bits are computed over.
+
+**"4-bit" alone doesn't specify a quantization scheme.** Group size is a second parameter, and most model cards leave it out.
+
+Both land on 76.0% MMLU, the same 38 of 50 questions. Two checkpoints two perplexity points apart can score the same on 50 questions, which is what a subset that small can resolve.
+
+MLX's MMLU pass took **40 seconds**. The GGUF checkpoints' MMLU passes took **25-27 minutes each**. That gap has nothing to do with the models. The GGUF path scores multiple-choice answers by asking a `llama_cpp.server` instance over HTTP, one request per answer choice, four per question. MLX's path calls `lm_eval` directly against the loaded model in the same process, batched, no network round-trip. Same 50 questions, same scoring logic, entirely different plumbing underneath.
+
+---
+
+## HQQ: a better fit per group
+
+RTN sizes its scale off the largest weight in a block and leaves it there. k-quants and MLX size scale and offset off the block's min and max, which is better, and still reads two numbers off the data: whatever the two most extreme weights happen to be, every other weight in the group has to live with the scale those two dictate. HQQ does neither: for each group it solves a small optimization problem, searching for the scale and zero-point that minimize the total reconstruction error added up across every weight in the group, not just the two at the edges.
+
+**A 16-weight group makes the mechanism visible.** Take two outliers, -1.20 and 0.90, and fourteen ordinary weights clustered around 0.10:
+
+| | Weight | Min/max recon | Min/max error | HQQ recon | HQQ error |
+| --- | --- | --- | --- | --- | --- |
+| Outlier | -1.20 | -1.20 | 0.000 | -1.16 | +0.040 |
+| Cluster | 0.094 | 0.06 | -0.034 | 0.10 | +0.006 |
+| Cluster | 0.111 | 0.06 | -0.051 | 0.10 | -0.011 |
+| Cluster | 0.117 | 0.06 | -0.057 | 0.10 | -0.017 |
+| Cluster | 0.122 | 0.06 | -0.062 | 0.10 | -0.022 |
+| Outlier | 0.90 | 0.90 | 0.000 | 0.80 | -0.100 |
+
+Both schemes use the same scale here, dictated by the same two outliers, so both spend a single code on the entire fourteen-weight cluster, the same coarse resolution either way. Min/max keeps that scale anchored so the outliers come back exact, and lands the cluster's one shared code at 0.06. Every cluster weight sits well above that, so every cluster weight comes back too low. HQQ's optimizer doesn't insist on hitting the outliers exactly. It shifts the code grid down, giving up some accuracy on the two rare outliers (-1.16 and 0.80 instead of exact) so the cluster's one shared code lands at 0.10, right where the fourteen ordinary weights sit. Same resolution, better-centered grid: the cluster's errors shrink to roughly a third of min/max's. Summed and squared across all sixteen weights, min/max's total error is 0.023; HQQ's is 0.017, about 25% lower, from the same 4 bits, the same group size, no extra information.
+
+Real weight groups run 32 to 64 wide with outliers scattered more thinly than this toy example, but the trade is the same one: a little more error on the rare extreme weights buys a lot less error on the many ordinary ones. Quantizing one real weight matrix from this model (`down_proj` in layer 10) at 4-bit, group size 64, confirms it at scale: HQQ's optimized scale and offset land 35-40% closer to the original weights than RTN's naive min/max scale, same group size, same bit width, measured as mean squared reconstruction error. Group for group, HQQ is a better fit.
+
+```python
+from hqq.models.hf.base import AutoHQQHFModel
+from hqq.core.quantize import BaseQuantizeConfig
+
+qcfg = BaseQuantizeConfig(nbits=4, group_size=64)
+AutoHQQHFModel.quantize_model(model, quant_config=qcfg, compute_dtype=torch.float16, device="mps")
+```
+
+Quantizing the 8B model took **3 minutes**, most of it the closed-form solve running per group across every layer.
+
+| Metric | fp16 | RTN `Q4_0` | HQQ 4-bit |
+| --- | --- | --- | --- |
+| Size on disk | 14.97 GB | 4.34 GB | 5.61 GB |
+| Perplexity, wikitext-2 | 7.365 \* | 7.804 (+5.5%) | 7.815 (+6.1%) |
+| MMLU, 50q subset | 82.0% (41/50) | 76.0% (38/50) | 76.0% (38/50) |
+
+\* Same second baseline as MLX, for the same reason. See the last section.
+
+A better per-group fit and a better end-to-end result are two different claims. HQQ reconstructs each weight group closer to the original than RTN does, and still finishes a hair behind it, +6.1% against +5.5%, in a checkpoint 1.3GB larger. Lower error inside one group buys you nothing you can count on once it has to survive 32 layers. The margin sits near the resolution of this comparison, and it does not go HQQ's way.
+
+Generation speed for this checkpoint stays out of the charts below, for a reason that has nothing to do with quantization. HQQ's default backend dequantizes each layer's packed weights on every forward call rather than caching the dequantized tensor, and a single-token decode step does barely any arithmetic to offset that cost, so this checkpoint generated at **0.6 tokens/sec**, roughly 200 times slower than fp16. That per-call dequantization isn't specific to Apple Silicon: it's what the default backend does on any device. HQQ ships faster, fused backends built to avoid it (`torchao_int4`, `marlin`, `bitblas`), but all three are CUDA-only, so a CUDA user has a way around this and a Mac user does not. Plain CUDA on the same default backend would still pay the same per-call cost, just against faster hardware underneath it.
+
+---
+
+## Every method, side by side
+
+![Size on disk, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/size_light.png)
+
+![Perplexity on wikitext-2, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/perplexity_light.png)
+
+![MMLU accuracy on the fixed 50-question subset, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/mmlu_light.png)
+
+![Generation speed in tokens per second, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/throughput_light.png)
+
+HQQ is missing from that last chart on purpose. Its 0.6 tokens/sec would compress every other bar to a sliver, and the number describes backend maturity on Apple Silicon rather than the checkpoint. The HQQ section above gives the figure and the reason.
+
+Put every checkpoint's size against its perplexity and a shape shows up that the per-method tables hide:
+
+![Every checkpoint's size on disk against its perplexity cost](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/tradeoff_light.png)
+
+Spend more bits, lose less quality, with no exceptions in the ordering: `Q8_0` at +0.05%, `Q5_K_M` at +1.0%, `Q4_K_M` at +3.1%, then the three 4-bit methods bunched inside 2.4 points of each other at RTN +5.5%, HQQ +6.1%, MLX +7.9%.
+
+One checkpoint sits off the curve. HQQ is both larger than RTN and worse than it, 5.61GB against 4.34GB and +6.1% against +5.5%, so it costs more on both axes at once. The rest trade size for quality at something close to a constant rate.
+
+Two things hold once the methods sit in one chart.
+
+**Bits per weight is a floor.** RTN, MLX and HQQ are all 4-bit, occupy 4.22GB to 5.61GB, and land at three different places on quality. Group size, per-group optimization and per-tensor precision decisions all hide inside that one number. `Q4_K_M` makes the same point from the other side: it costs 4.58GB against RTN's 4.34GB and beats it on both quality metrics.
+
+**Generation speed and evaluation speed answer different questions.** Most quantized checkpoints generate faster than fp16, because decode is memory-bandwidth bound and smaller weights move faster. HQQ is the exception, held back by its backend rather than its weights. Evaluation wall time tracks the tooling built around a format instead of the checkpoint itself: MLX's 40-second MMLU pass against llama.cpp's 25 minutes comes from an HTTP bridge, not from either model.
+
+---
+
+## Running it yourself
+
+Every number above comes from the `model-quantization/` folder of https://github.com/adimyth/llm-inference-experiments
+
+One folder per method, each holding the same four scripts plus a README explaining the method: `quantize.py`, `perplexity.py`, `mmlu.py`, `throughput.py`.
+
+| Folder | Method |
+| --- | --- |
+| [`fp16`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/fp16) | The unquantized baseline, and the cross-check between the two perplexity tools |
+| [`rtn`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/rtn) | Round-to-nearest, llama.cpp `Q4_0` |
+| [`kquants`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/kquants) | `Q4_K_M`, `Q5_K_M`, `Q8_0` |
+| [`mlx`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/mlx) | MLX 4-bit, group size 64 |
+| [`hqq`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/hqq) | HQQ 4-bit, group size 64 |
+
+Four things sit at the root because duplicating them would break the comparison: [`perplexity_core.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/perplexity_core.py) holds the perplexity convention, [`mmlu_tasks.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/mmlu_tasks.py) holds the fixed 50 questions, [`results_io.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/results_io.py) merges each metric into one results file, and [`plot.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/plot.py) draws the charts above.
+
+Three gotchas, if you build this yourself:
+
+- **`lm_eval`'s `gguf` model type needs a server that returns logprobs for echoed text, not just newly generated tokens.** llama.cpp's own `llama-server` doesn't do this. Only `llama_cpp.server`, from the separate `llama-cpp-python[server]` package, does.
+- **`lm_eval --limit N` is a plain positional slice, not a random sample.** The same 50 questions apply to every checkpoint, not a fresh sample each run.
+- **HQQ's quantization and reload functions default to `device='cuda'`.** On a Mac, that either crashes or reloads onto the wrong device without warning. Pass `device='mps'` explicitly everywhere. This fixes correctness, not the generation speed above: that's a separate backend issue, covered in the HQQ section.
+
+---
+
+## Two ways to measure perplexity
+
+No single tool reads every format in this essay. `llama-perplexity`, which ships with llama.cpp, handles the GGUF checkpoints: fp16, RTN and the k-quants. It cannot open an MLX or HQQ checkpoint at all, so those go through a windowing loop written for this project.
+
+Running one metric through two implementations only works if the two agree, and agreement is not automatic. "Perplexity on wikitext-2" leaves out a choice that moves the number: which tokens inside each window get scored.
+
+llama.cpp's answer sits in `tools/perplexity/perplexity.cpp`:
+
+```c
+const int first = n_ctx/2;
+```
+
+With the default 512-token window, `first` is 256. llama.cpp feeds the model all 512 tokens but scores only the last 256 of them. The reason is context. The first token of a window has nothing in front of it, the second has one token, the third has two, and predictions that early are hard for any model whether or not it has been quantized. Counting them inflates perplexity without telling you anything about the weights. Starting at the halfway mark guarantees every scored token has at least 256 tokens of context behind it.
+
+This project's loop now does the same. [`perplexity_core.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/perplexity_core.py) holds the chunking and the second-half rule in one place, and the PyTorch, MLX and HQQ paths supply only their own model loading and loss computation.
+
+The check worth running is both implementations against the same unquantized weights:
+
+| Implementation | fp16 perplexity |
+| --- | --- |
+| `llama-perplexity` | 7.395 |
+| This project's loop | 7.365 |
+
+They land 0.4% apart, which is about what fp16 kernel differences between llama.cpp's Metal path and PyTorch's MPS backend come to. That agreement is what licenses putting a GGUF checkpoint and an MLX checkpoint in the same table, and it is why MLX and HQQ are quoted against 7.365 while RTN and the k-quants are quoted against 7.395.
+
+Scoring the whole 512-token window instead of the second half gives **9.460** on those same fp16 weights. Neither number is wrong on its own terms. But a checkpoint measured one way cannot be read against a baseline measured the other, and the gap between the two conventions is larger than the gap between any two quantization methods in this essay.
+
+---
+
+## What it comes to
+
+Quantization is not one number. The methods here span 4 to 8 bits and land in a clean order once measured on one scale: `Q8_0` costs nothing worth counting, the k-quants buy back most of what 4 bits gives up, and the three 4-bit methods finish within 2.4 points of each other despite three different ideas about how to round. `Q4_K_M` is the one that earns its keep, matching RTN's size and beating it on both quality metrics.
+
+A different model or a different machine can reorder all of it. Quantize the model you actually run, and measure it against the model it came from.
