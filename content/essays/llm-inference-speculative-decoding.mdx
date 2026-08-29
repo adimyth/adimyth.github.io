@@ -14,7 +14,9 @@ That mismatch is expensive. Producing one token means moving all 14GB of this mo
 
 Throughout, **`k` is how many tokens the small model guesses before the large one checks them.** It is the one dial in the technique, and most of this essay is about where to set it.
 
-Everything below runs on an M4 Pro: **Qwen2.5-7B-Instruct** as the target, **Qwen2.5-0.5B-Instruct** as the draft, fp16 on MPS, greedy, medians of three runs. The code is in [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments).
+Everything below runs on an M4 Pro: **Qwen2.5-7B-Instruct** as the target, **Qwen2.5-0.5B-Instruct** as the draft, fp16 on MPS, greedy, medians of three runs.
+
+<LinkPreview href="https://github.com/adimyth/llm-inference-experiments" title="adimyth/llm-inference-experiments" description="Reproducible scripts and measurements behind the LLM inference essays." />
 
 ---
 
@@ -407,7 +409,7 @@ Experiments for that are in progress.
 
 ## Running it yourself
 
-Every number above comes from [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments).
+The individual scripts below reproduce the figures in this essay.
 
 [`spec_one_pass.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/speculative-decoding/spec_one_pass.py) prints one prediction per position from a single pass, and shows that truncating the input leaves the earlier answers untouched.
 

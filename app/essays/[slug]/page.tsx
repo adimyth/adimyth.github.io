@@ -1,18 +1,58 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import "highlight.js/styles/atom-one-dark.css";
+import "katex/dist/katex.min.css";
 import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
 import remarkUnwrapImages from "@/lib/remark-unwrap-images";
 import EssayImage from "@/components/EssayImage";
 import EssayVideo from "@/components/EssayVideo";
+import LinkPreview from "@/components/LinkPreview";
+import QuantizationCharts from "@/components/QuantizationCharts";
+import ClaudeHandoff from "@/components/ClaudeHandoff";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
 import { profile } from "@/lib/data";
 
 type Props = { params: Promise<{ slug: string }> };
+
+function headingText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(headingText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) return headingText(node.props.children);
+  return "";
+}
+
+function headingId(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getChapters(source: string) {
+  return Array.from(source.matchAll(/^## (.+)$/gm), ([, heading]) => {
+    const title = heading.replace(/[`*_]/g, "");
+    return { id: headingId(title), title };
+  });
+}
+
+function EssayHeading({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<"h2">) {
+  return (
+    <h2 id={headingId(headingText(children))} className={`scroll-mt-6 ${className ?? ""}`} {...props}>
+      {children}
+    </h2>
+  );
+}
 
 export async function generateStaticParams() {
   return getAllEssays().map((e) => ({ slug: e.slug }));
@@ -63,6 +103,7 @@ export default async function EssayPage({ params }: Props) {
   }
 
   const { meta, content } = essay!;
+  const chapters = getChapters(content);
 
   return (
     <main className="min-h-screen bg-[#f4f1ea] px-6 py-16">
@@ -72,7 +113,8 @@ export default async function EssayPage({ params }: Props) {
         description={meta.description}
         date={meta.date}
       />
-      <div className="max-w-3xl mx-auto">
+      <div className="relative mx-auto max-w-[42.5rem]">
+        <article className="min-w-0">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f4945] hover:text-[#111111] transition-colors mb-12"
@@ -93,12 +135,30 @@ export default async function EssayPage({ params }: Props) {
           )}
         </div>
 
-        <h1
-          style={{ fontFamily: "var(--font-lora)" }}
-          className="text-4xl md:text-5xl font-bold text-[#111111] leading-tight mb-10"
-        >
+        <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.035em] text-[#111111] leading-[1.08] mb-10">
           {meta.title}
         </h1>
+
+        {chapters.length > 0 && (
+          <nav
+            aria-label="Essay chapters"
+            className="mb-10 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] px-5 py-4 min-[1200px]:hidden"
+          >
+            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
+            <ol className="mt-3 grid gap-y-2 text-sm">
+              {chapters.map((chapter) => (
+                <li key={chapter.id}>
+                  <a
+                    href={`#${chapter.id}`}
+                    className="text-[#2f2b29] underline decoration-[#b9b1a6] underline-offset-4 transition-colors hover:text-[#111111]"
+                  >
+                    {chapter.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
 
         {meta.originalUrl && (
           <a
@@ -114,18 +174,19 @@ export default async function EssayPage({ params }: Props) {
 
         <hr className="border-[#d9d4cc] mb-10" />
 
-        <div className="prose-essay">
+        <div id="essay-content" className="prose-essay">
           <MDXRemote
             source={content}
-            components={{ img: EssayImage, EssayVideo }}
+            components={{ img: EssayImage, EssayVideo, LinkPreview, QuantizationCharts, h2: EssayHeading }}
             options={{
               mdxOptions: {
-                remarkPlugins: [remarkGfm, remarkUnwrapImages],
-                rehypePlugins: [rehypeHighlight],
+                remarkPlugins: [remarkGfm, remarkMath, remarkUnwrapImages],
+                rehypePlugins: [rehypeKatex, rehypeHighlight],
               },
             }}
           />
         </div>
+        {process.env.NODE_ENV !== "production" && <ClaudeHandoff />}
 
         {meta.originalUrl && (
           <div className="mt-16 pt-8 border-t border-[#d9d4cc]">
@@ -142,6 +203,30 @@ export default async function EssayPage({ params }: Props) {
               <ArrowUpRight className="w-4 h-4" />
             </a>
           </div>
+        )}
+        </article>
+
+        {chapters.length > 0 && (
+          <aside className="absolute inset-y-0 left-full ml-4 hidden w-44 min-[1200px]:block">
+            <nav
+              aria-label="Essay chapters"
+              className="sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto border-l border-[#d9d4cc] pl-5 pr-1"
+            >
+              <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
+              <ol className="mt-4 grid gap-y-2 text-sm leading-6">
+                {chapters.map((chapter) => (
+                  <li key={chapter.id}>
+                    <a
+                      href={`#${chapter.id}`}
+                      className="text-[#4f4945] transition-colors hover:text-[#111111]"
+                    >
+                      {chapter.title}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          </aside>
         )}
       </div>
     </main>

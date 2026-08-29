@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read -r f; case \"$f\" in *content/essays/*.mdx) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"The essay file just edited/written lives under content/essays/. Before considering this essay done, apply the stop-slop skill (~/.claude/skills/stop-slop) to check the prose for AI writing patterns (filler phrases, formulaic structures, em dashes, passive voice, etc).\"}}' ;; esac; } 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Lora, Fira_Code } from "next/font/google";
+import { Inter, Lora, Fira_Code, Source_Serif_4 } from "next/font/google";
 import Script from "next/script";
 import { SITE_URL } from "@/lib/data";
 import PersonJsonLd from "@/components/PersonJsonLd";
@@ -14,6 +14,12 @@ const inter = Inter({
 const lora = Lora({
   subsets: ["latin"],
   variable: "--font-lora",
+  display: "swap",
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-source-serif",
   display: "swap",
 });
 
@@ -57,7 +63,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${lora.variable} ${firaCode.variable} scroll-smooth antialiased`}
+      className={`${inter.variable} ${lora.variable} ${sourceSerif.variable} ${firaCode.variable} scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
         {children}

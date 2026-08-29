@@ -12,7 +12,9 @@ Ask a language model for a 500 word answer. Without a cache, producing the 500th
 
 I have been working through [learn-inference.com](https://learn-inference.com/) to get systematic about how inference behaves, rather than picking it up in fragments from incident reviews. This is my understanding of the caching part.
 
-Every number below came from running the code that produces it, on a MacBook Pro with an M4 Pro and 48GB of memory. The scripts are in [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments) if you want to check them.
+Every number below came from running the code that produces it, on a MacBook Pro with an M4 Pro and 48GB of memory.
+
+<LinkPreview href="https://github.com/adimyth/llm-inference-experiments" title="adimyth/llm-inference-experiments" description="Reproducible scripts and measurements behind the LLM inference essays." />
 
 ---
 
@@ -233,7 +235,7 @@ For a multi-turn product this is the difference between the optimisation working
 
 Two scripts produce everything above.
 
-All three live in [adimyth/llm-inference-experiments](https://github.com/adimyth/llm-inference-experiments).
+The individual scripts are linked below.
 
 `kv_cache_size.py` is arithmetic and nothing else. **It does not load or download any model.** It evaluates the formula above against published config values for those three architectures, then divides free memory by the result to get the concurrency table. Every figure in the two tables above comes from it.
 
