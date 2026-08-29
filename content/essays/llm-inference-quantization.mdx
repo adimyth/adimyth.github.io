@@ -1,8 +1,8 @@
 ---
 title: "LLM Inference: Post-Training Quantization"
-description: "Shrinking a model's weights after training costs some quality and buys back size and speed. Four methods measured against one fp16 baseline on one laptop: what each does differently, what it costs on perplexity and MMLU, and why measuring perplexity consistently is harder than it sounds."
+description: "Shrinking a model's weights after training costs some quality and buys back size and speed. Six methods measured against one fp16 baseline: what each one actually does, what it costs, and why getting the measurement right turned out to be harder than any of the methods."
 date: "2026-08-29"
-readTime: "18 min read"
+readTime: "32 min read"
 featured: true
 draft: true
 ---
@@ -11,9 +11,11 @@ A trained model's weights sit in memory as fp16 or bf16 numbers, two bytes each.
 
 **Quantization shrinks those numbers after training is already done.** Round each weight down to fewer bits, 8, 5, 4, and there's less to move. A checkpoint a third of the size moves a third of the data per token, which is most of why a quantized model generates faster. It also gets worse at its job, and how much worse comes down to how you round.
 
-Four methods round differently, and this essay puts all four through the same measurements: round-to-nearest, GGUF's k-quants, Apple's MLX, and HQQ. All four quantize the same model, **Llama 3.1 8B Instruct**, on the same machine, an M4 Pro with 48GB, and every number below sits against that model unquantized. Quality comes from two numbers, perplexity over the wikitext-2 test split and accuracy on a fixed 50-question MMLU subset that every checkpoint sees identically.
+Six methods round differently, and this essay works through what each one actually does: round-to-nearest, GGUF's k-quants, Apple's MLX, HQQ, AWQ and GPTQ. They split cleanly in two. The first four decide how to round by looking only at the weight values. The last two push real text through the model first and use what they see, and they are the reason this essay needed a second machine. All six quantize the same model, **Llama 3.1 8B Instruct**, and every number below sits against that model unquantized. Quality comes from two numbers, perplexity over the wikitext-2 test split and accuracy on a fixed 50-question MMLU subset that every checkpoint sees identically.
 
-Every script and every result behind the numbers below lives at https://github.com/adimyth/llm-inference-experiments
+The aim is to explain each method on its own terms and report what it costs, not to rank them against one another. Some comparisons here are sound and the essay makes them plainly. Within the k-quant family one tool quantizes one file at three bit widths, so the ordering means what it appears to mean. Others are not sound, because group size, the quantization library and the measuring tool can all change at once between two methods, and where that happens the essay says so instead of ranking them anyway.
+
+<LinkPreview href="https://github.com/adimyth/llm-inference-experiments" title="adimyth/llm-inference-experiments" description="Reproducible experiments, measurements, and charts behind this essay." />
 
 ---
 
@@ -54,6 +56,8 @@ RTN and the k-quants all start from that one file, built once and quantized four
 Split the weights into blocks of 32. Each block gets one shared **scale**, a single number, call it `d`. Every weight in the block gets replaced by two things: `d` (stored once, shared by all 32) and a small integer **code**, stored per weight in 4 bits. To read a weight back later, multiply: `weight ≈ code × d`.
 
 `d` is set from the block's own largest weight, so nothing in the block overflows what 4 bits can hold. A 4-bit signed code can be any whole number from -8 to 7, so `d = max(abs(weights)) / 8`.
+
+This is a deliberately simplified RTN illustration, not a literal transcription of llama.cpp's `Q4_0` encoding. The benchmark command below uses `Q4_0`, whose signed scale and packed-code convention differs slightly, but it follows the same scale, round-to-nearest, and reconstruct sequence.
 
 **A block of four, to see the mechanism** (real blocks hold 32; four keeps the table small):
 
@@ -142,7 +146,7 @@ All three quantize from the same f16 GGUF that RTN used, each pass taking well u
 | Perplexity, wikitext-2 | 7.395 | 7.622 (+3.1%) | 7.467 (+1.0%) | 7.399 (+0.05%) |
 | MMLU, 50q subset | 82.0% (41/50) | 78.0% (39/50) | 80.0% (40/50) | 80.0% (40/50) |
 
-`Q4_K_M` costs almost the same size as RTN's `Q4_0`, 4.58GB against 4.34GB. For that near-identical budget it buys back nearly half of RTN's perplexity gap and an extra MMLU question. Same bits spent, smarter arithmetic, real improvement, no extra cost.
+`Q4_K_M` costs almost the same size as RTN's `Q4_0`, 4.58GB against 4.34GB. For that near-identical budget it buys back nearly half of RTN's perplexity gap, 7.622 against 7.804. That comparison is a clean one: the same tool quantized the same f16 file and scored both against the same baseline, so nothing varies except the scheme. It also answers one more MMLU question correctly, which on a 50-question subset is noise rather than evidence. Same bits spent, smarter arithmetic, a real perplexity improvement at no extra size.
 
 `Q5_K_M` sits between `Q4_K_M` and `Q8_0` on size and on perplexity, which is what a 5-bit base type spending more bits than `Q4_K_M` and fewer than `Q8_0` should do. It ties `Q8_0` on MMLU and trails both on prompt processing, neither of which follows from the bit count. At 5.34GB it's a third bigger than `Q4_K_M`, and its perplexity cost drops to +1.0%, a third of `Q4_K_M`'s +3.1%. It's the pick if `Q4_K_M`'s quality cost feels too high but `Q8_0`'s size doesn't feel worth it.
 
@@ -234,39 +238,247 @@ Generation speed for this checkpoint stays out of the charts below, for a reason
 
 ---
 
+## Everything so far has only looked at the weights
+
+RTN reads a block's largest value. k-quants and MLX read a group's min and max. HQQ solves for the scale and offset that fit a group best. Four methods, four different answers to the same question, and not one of them has any idea what the model actually does with those weights.
+
+A weight that barely participates and a weight that carries most of a layer's output look identical to all four. Both are just numbers in a group.
+
+The next two methods change that. Each pushes a few hundred real text samples through the model before quantizing anything and watches what happens. That text is a **calibration set**, and it is worth being precise about what it is not: there are no gradients, no backward pass, no weight updates. The model is not learning. The calibration set is only used to *observe*, and what gets observed decides how the rounding is done. This is still post-training quantization.
+
+Two ways to use that observation, and they are close to opposites:
+
+**AWQ decides what to protect before it rounds anything.** It measures which input channels carry the largest activations and gives those channels more of the grid's precision up front.
+
+**GPTQ rounds greedily and then repairs.** It quantizes one column at a time, and after each one it adjusts the columns it has not reached yet to compensate for the error it just made.
+
+---
+
+## AWQ: spend the grid where the activations are
+
+Start with the observation the first four methods cannot make. Take one weight, rounded with an error of +0.030, and put it in two different input channels of the same layer:
+
+| Input channel | Mean abs activation | Weight | 4-bit recon | Weight error | Damage to the layer's output |
+| --- | --- | --- | --- | --- | --- |
+| Salient | 8.0 | 0.42 | 0.45 | +0.030 | **+0.240** |
+| Ordinary | 0.5 | 0.42 | 0.45 | +0.030 | +0.015 |
+
+Identical weights, identical rounding, identical error. Sixteen times the damage. What reaches the next layer is the weight error multiplied by whatever flowed through it, and activation magnitudes across a layer's input channels are not remotely uniform. A small fraction of channels carry far larger activations than the rest.
+
+AWQ finds those channels and **scales them up before rounding**. Multiply a salient channel's weights by some `s` greater than 1, divide that channel's incoming activations by the same `s`, and the layer computes exactly what it did before. What changes is where those weights sit on the grid: larger values, same absolute step size, so the step is a smaller fraction of them. The channel gets finer effective resolution, paid for by the other channels in the group giving up a little of the range.
+
+The rounding itself never changes. AWQ is ordinary round-to-nearest applied to a rescaled matrix. All the intelligence is in choosing `s`, and it is chosen by search: `llmcompressor` tries **20 candidate values per channel group** and keeps whichever minimizes reconstruction error. Those are the `best_error` figures that scroll past during a run.
+
+**What actually got applied**, read from the checkpoint's own `config.json` rather than the documentation:
+
+| | |
+| --- | --- |
+| Scheme | `W4A16_ASYM`, 4-bit weights, fp16 activations |
+| Group size | 128 |
+| Zero-point | yes, `symmetric: false` |
+| Ignored | `lm_head` |
+| Calibration | `ultrachat_200k`, 256 samples, 2048 tokens, seed 42 |
+| Search grid | 20 candidates per group, `duo_scaling: true` |
+
+### The mapping that silently does not run
+
+`llmcompressor` ships four scaling rules for Llama, each pairing a layer whose output gets rescaled with the layers that must absorb the change:
+
+| Smooth | Balance |
+| --- | --- |
+| `input_layernorm` | `q_proj`, `k_proj`, `v_proj` |
+| `v_proj` | `o_proj` |
+| `post_attention_layernorm` | `gate_proj`, `up_proj` |
+| `up_proj` | `down_proj` |
+
+The run logged a warning worth chasing: `32 mappings were skipped due to incompatible shapes`. Thirty-two is exactly the layer count, so one rule fails in every layer. It is the second one, and grouped-query attention is why:
+
+```
+v_proj output = kv_heads x head_dim =  8 x 128 = 1024
+o_proj input  =    heads x head_dim = 32 x 128 = 4096
+```
+
+Llama 3.1 8B has 32 query heads sharing 8 key/value heads, so `v_proj` emits 1024 values where `o_proj` expects 4096. There is no per-channel scale that bridges those shapes, and the rule is dropped. **The attention output projection receives no activation-aware scaling at all**, in any of the 32 layers. AWQ ran here at three quarters of its mapping coverage, and nothing in the output announces it beyond one warning line.
+
+That is worth knowing before reading the result as a verdict on the algorithm. Grouped-query attention is now standard, so this is not an exotic edge case.
+
+Quantizing the 8B model took **14 minutes 22 seconds** on an L40S.
+
+| Metric | fp16 (CUDA control) | AWQ 4-bit |
+| --- | --- | --- |
+| Size on disk | 14.97 GB | 5.35 GB |
+| Perplexity, wikitext-2 | 7.365 | 7.792 (+5.8%) |
+| MMLU, 50q subset | 82.0% | 78.0% |
+| MMLU, 200q subset | 76.5% | 77.0% |
+
+Those last two rows disagree with each other, and that disagreement is the subject of a later section.
+
+---
+
+## GPTQ: round it badly, then fix what you can
+
+AWQ prepares the weights so that ordinary rounding does less damage. GPTQ leaves the weights alone and changes the *order and bookkeeping* of the rounding itself.
+
+It works through a weight matrix one column at a time. Quantize a column, measure the error rounding introduced, then push a correction into the columns not yet quantized so they can absorb it. By the time the last column is reached it carries the accumulated debt of every column before it.
+
+**The target is not what you would guess.** Every other method in this essay tries to make each quantized weight close to the original weight. GPTQ does not. It minimizes the error in what the layer *outputs*, and it will happily make an individual weight less accurate to get there.
+
+That works because input channels are correlated. If two channels tend to carry large activations at the same time, then rounding one weight too far down can be paid back by nudging the other one up: whenever the first under-contributes, the second is there to cover it. How much to nudge is exactly:
+
+```
+correction to column j  =  (rounding error at column q) x [H-1]qj / [H-1]qq
+```
+
+`H` is a **Hessian** estimated over the calibration text, and those ratios are what "how correlated are these two channels" looks like as a number. **This is the only reason GPTQ needs calibration data.** Without it there is no basis for deciding which remaining column can absorb an error and how much of it.
+
+**A three-column illustration**, grid step 0.15, weights `0.37`, `0.22`, `0.50`, with the inverse Hessian saying column 2 can absorb 60% of column 1's error and column 3 the remaining 40%:
+
+| Step | Column | Presented to the quantizer | Rounds to | Error vs presented | Pushed forward |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `w1` = 0.37 | 0.370 | 0.30 | **-0.070** | `w2` +0.042, `w3` +0.028 |
+| 2 | `w2` = 0.22 | 0.22 + 0.042 = **0.262** | 0.30 | +0.038 | `w3` -0.038 |
+| 3 | `w3` = 0.50 | 0.50 + 0.028 - 0.038 = **0.490** | 0.45 | -0.040 | nothing left |
+
+Step 1 rounds 0.37 down to 0.30, leaving the layer 0.070 short, and that shortfall is split forward. Step 2 is then handed **0.262 rather than 0.22**, which crosses the midpoint at 0.225 and rounds to 0.30 instead of 0.15. That flip is the whole mechanism: the same weight, a different rounding decision, because of what happened to a different column.
+
+| | `w1` | `w2` | `w3` | Layer output | Output error |
+| --- | --- | --- | --- | --- | --- |
+| Original | 0.37 | 0.22 | 0.50 | 1.09 | |
+| Plain round-to-nearest | 0.30 | 0.15 | 0.45 | 0.90 | **-0.190** |
+| GPTQ | 0.30 | **0.30** | 0.45 | 1.05 | **-0.040** |
+
+Note what GPTQ did to the individual weights. Its `w2` is off by +0.080, a **larger** error than plain rounding's -0.070, and its total absolute weight error is 0.200 against plain rounding's 0.190. Every weight is, collectively, slightly further from where it started. The layer's output error is nearly five times smaller.
+
+That is the trade in one line: **GPTQ makes the weights worse on purpose, in a coordinated way, so the errors cancel where it counts.** Three columns and a coarse grid make it visible; a real layer has thousands of columns and the cancellation is statistical rather than this tidy.
+
+**What actually got applied:**
+
+| | |
+| --- | --- |
+| Scheme | `W4A16`, 4-bit weights, fp16 activations |
+| Group size | 128 |
+| Zero-point | **no**, `symmetric: true` |
+| Block size | 128 |
+| Dampening | 0.01 |
+| Activation order | `static` |
+| Ignored | `lm_head` |
+| Calibration | `ultrachat_200k`, 256 samples, 2048 tokens, seed 42 |
+
+Quantizing took **13 minutes 10 seconds**, slightly *faster* than AWQ, which is the opposite of what the per-column Hessian solve sounds like it should cost. GPU utilization told the same story from the other side: AWQ's scale search pinned the card at 100%, GPTQ's solve hovered near 18%, because it is serial work that cannot fill the device.
+
+| Metric | fp16 (CUDA control) | GPTQ 4-bit |
+| --- | --- | --- |
+| Size on disk | 14.97 GB | 5.33 GB |
+| Perplexity, wikitext-2 | 7.365 | 7.959 (+8.1%) |
+| MMLU, 50q subset | 82.0% | 76.0% |
+| MMLU, 200q subset | 76.5% | 75.0% |
+
+---
+
+## AWQ against GPTQ, the one comparison this project can actually make
+
+Everywhere else in this essay, comparing two methods means comparing two libraries, two group sizes and two measurement tools at the same time. Not here. These two were quantized by the same library from the same calibration set built with the same seed, the same 256 samples and the same 2048-token limit, at the same bit width and the same group size, then scored by the same loop against the same baseline on the same GPU in the same session.
+
+| | AWQ | GPTQ |
+| --- | --- | --- |
+| Perplexity | **7.792** (+5.8%) | 7.959 (+8.1%) |
+| MMLU, 200q | 77.0% | 75.0% |
+| Size | 5.35 GB | 5.33 GB |
+| Quantization time | 14m 22s | 13m 10s |
+
+AWQ wins on perplexity by 2.3 points, and that gap is far outside the resolution of this measurement.
+
+**One thing stops it from being a clean verdict on the algorithms**, and it is visible only in the checkpoints' own configs:
+
+```
+AWQ   symmetric = False   (a zero-point per group)
+GPTQ  symmetric = True    (no zero-point)
+```
+
+AWQ's default scheme stores an offset per group that GPTQ's does not. It carries strictly more information about each group, which is an advantage that has nothing to do with deciding-before versus repairing-after. The two checkpoints land within 0.02 GB of each other, so that extra information is close to free, which makes AWQ's default look like the better-chosen default. But the honest reading of the table is **AWQ as shipped beat GPTQ as shipped**, not that protecting salient channels beats compensating for error.
+
+Both schemes are each method's documented default, so this is exactly the comparison someone reaching for either library would get. It is a useful result and a poor experiment, and those are different things.
+
+---
+
+## Why these two ran on different hardware
+
+Neither AWQ nor GPTQ has a Metal or MPS path. Not a slow one, none. The four methods above were measured on an M4 Pro; these two required a rented NVIDIA L40S, which raises the obvious question of whether their numbers can sit in the same tables at all.
+
+For quality, yes, and this was worth checking rather than assuming. The same PyTorch loop scoring the same unquantized weights gives:
+
+| Where | Perplexity |
+| --- | --- |
+| M4 Pro, MPS | 7.3648 |
+| L40S, CUDA | 7.3649 |
+
+Four decimal places apart across two vendors' silicon, and MMLU returned 82.0% on both. Perplexity and MMLU measure the checkpoint, not the machine, so AWQ and GPTQ join the quality tables directly.
+
+For speed, no, and the reason is more interesting than the caveat. On the M4 Pro, quantized checkpoints generate roughly **three times faster** than fp16, because decode is memory-bandwidth bound and a 4.3GB checkpoint moves less than a 15GB one. On the L40S, measured against an fp16 control on that same card:
+
+| | Generation | vs fp16 on the same GPU |
+| --- | --- | --- |
+| fp16 | 38.1 t/s | 1.00x |
+| AWQ 4-bit | 33.4 t/s | **0.88x** |
+| GPTQ 4-bit | 32.9 t/s | **0.86x** |
+
+**Both quantized checkpoints generate slower than the unquantized one.** The advantage does not shrink, it inverts.
+
+Two things cause it, and neither is about quantization. `compressed-tensors` under plain `transformers` unpacks 4-bit weights to fp16 and then runs an ordinary fp16 matmul, so the arithmetic saved is zero and the unpacking is pure overhead. And an L40S has enough memory bandwidth that single-stream decode is not starved the way it is on a laptop, so there is much less bandwidth saving to collect in the first place. Serving stacks like vLLM ship fused kernels that make 4-bit genuinely faster on this hardware; plain `transformers` is not that, and this essay measured plain `transformers`.
+
+It is the same shape of result as HQQ's 0.6 tokens/sec above: a number describing a backend, not a checkpoint. Tokens per second is a property of a checkpoint, a kernel and a chip together, and moving any of the three moves the number. That is why the generation-speed chart below carries M4 Pro results only, and these two appear as a ratio against a control measured beside them.
+
+---
+
 ## Every method, side by side
 
-![Size on disk, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/size_light.png)
+<QuantizationCharts />
 
-![Perplexity on wikitext-2, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/perplexity_light.png)
+Spend more bits, lose less quality. Inside the k-quant family, where one tool quantizes one file and scores it against one baseline, the ordering has no exceptions: `Q8_0` at +0.05%, `Q5_K_M` at +1.0%, `Q4_K_M` at +3.1%. The five 4-bit methods then land in a band running from +5.5% to +8.1%: RTN +5.5%, AWQ +5.8%, HQQ +6.1%, MLX +7.9%, GPTQ +8.1%. That band is worth reading as a band and not as a ranking. RTN is measured by llama.cpp while the other four go through the PyTorch loop, and their group sizes run 32, 128, 64, 64 and 128, so position inside the band carries at least as much about grid density and measurement tooling as it does about the rounding algorithm. Two methods with a calibration set sit at opposite ends of it, which on its own should discourage reading the order as a verdict on calibration.
 
-![MMLU accuracy on the fixed 50-question subset, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/mmlu_light.png)
-
-![Generation speed in tokens per second, every checkpoint against fp16](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/throughput_light.png)
-
-HQQ is missing from that last chart on purpose. Its 0.6 tokens/sec would compress every other bar to a sliver, and the number describes backend maturity on Apple Silicon rather than the checkpoint. The HQQ section above gives the figure and the reason.
-
-Put every checkpoint's size against its perplexity and a shape shows up that the per-method tables hide:
-
-![Every checkpoint's size on disk against its perplexity cost](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/model-quantization/results/tradeoff_light.png)
-
-Spend more bits, lose less quality, with no exceptions in the ordering: `Q8_0` at +0.05%, `Q5_K_M` at +1.0%, `Q4_K_M` at +3.1%, then the three 4-bit methods bunched inside 2.4 points of each other at RTN +5.5%, HQQ +6.1%, MLX +7.9%.
-
-One checkpoint sits off the curve. HQQ is both larger than RTN and worse than it, 5.61GB against 4.34GB and +6.1% against +5.5%, so it costs more on both axes at once. The rest trade size for quality at something close to a constant rate.
+One checkpoint sits off the curve on size. HQQ takes 5.61GB against RTN's 4.34GB for the same nominal 4 bits per weight, so it is unambiguously the more expensive of the two on disk. On quality the two are closer than this experiment can separate. HQQ reads +6.1% and RTN +5.5%, but those percentages come from different tools measured against different fp16 baselines, 7.3648 and 7.3950, and the 0.4% gap between the baselines is nearly as large as the 0.6 points between the results. The supportable statement is that HQQ costs more disk for a perplexity this setup cannot distinguish from RTN's, not that HQQ is worse. The rest trade size for quality at something close to a constant rate.
 
 Two things hold once the methods sit in one chart.
 
-**Bits per weight is a floor.** RTN, MLX and HQQ are all 4-bit, occupy 4.22GB to 5.61GB, and land at three different places on quality. Group size, per-group optimization and per-tensor precision decisions all hide inside that one number. `Q4_K_M` makes the same point from the other side: it costs 4.58GB against RTN's 4.34GB and beats it on both quality metrics.
+**Bits per weight is a floor, not a specification.** Five methods here are nominally 4-bit and they occupy 4.22GB to 5.61GB, a third more disk at the same stated precision. Group size, per-group optimization and per-tensor precision decisions all hide inside that one number.
 
-**Generation speed and evaluation speed answer different questions.** Most quantized checkpoints generate faster than fp16, because decode is memory-bandwidth bound and smaller weights move faster. HQQ is the exception, held back by its backend rather than its weights. Evaluation wall time tracks the tooling built around a format instead of the checkpoint itself: MLX's 40-second MMLU pass against llama.cpp's 25 minutes comes from an HTTP bridge, not from either model.
+Two pairs in this project are controlled tightly enough to say something about method rather than setup. **MLX against HQQ**: both 4-bit, both group size 64, both scored by the same PyTorch loop against the same 7.3648 baseline, 1.8 points apart. **AWQ against GPTQ**: same library, same calibration set, same group size, same loop, same GPU, 2.3 points apart, with the caveat that AWQ's default scheme carries a zero-point and GPTQ's does not. Everywhere else, two methods differ in three things at once. `Q4_K_M` makes the point from the other side, costing 4.58GB against RTN's 4.34GB, measured by the same tool, for roughly half the perplexity penalty.
+
+**Generation speed belongs to a kernel and a chip, not to a checkpoint.** On the M4 Pro most quantized checkpoints generate faster than fp16, because decode is memory-bandwidth bound and smaller weights move faster. HQQ is the exception, held back by its backend rather than its weights. On the L40S the whole effect inverts: AWQ and GPTQ generate at 0.88x and 0.86x of fp16 on that same card, because unfused dequantization costs more than the bandwidth it saves on hardware that was never bandwidth-starved. Three checkpoints, three different stories about 4-bit speed, and none of them is a fact about 4-bit.
+
+Evaluation wall time is the same trap one level down. It tracks the tooling built around a format instead of the checkpoint itself: MLX's 40-second MMLU pass against llama.cpp's 25 minutes comes from an HTTP bridge, not from either model.
+
+---
+
+## What this experiment settles, and what it doesn't
+
+Every chart above invites a ranking, and most of the rankings it invites are not supported. Worth being explicit about which claims the setup can carry.
+
+**It settles these.**
+
+Bit width against quality inside one family. `Q8_0`, `Q5_K_M` and `Q4_K_M` come from one tool quantizing one file and one loop scoring them against one baseline, so their ordering means exactly what it looks like. The same holds for `Q4_K_M` against `Q4_0`.
+
+What each method costs against its own baseline. "MLX 4-bit costs 7.9% perplexity at group size 64" is a measurement, and every method here has one.
+
+Sizes on disk, which are just file sizes and need no interpretation.
+
+That perplexity is not fully specified by naming the dataset, which is the subject of the last section and the most transferable thing here.
+
+**It does not settle these.**
+
+Which 4-bit method rounds best. Group size varies from 32 to 128 across them, the quantization libraries differ, and two different tools produce the fp16 baselines they are quoted against. Those three things move together, so a gap between two methods cannot be attributed to the rounding algorithm. Two pairs are exceptions: MLX against HQQ, and AWQ against GPTQ, and even the second carries a scheme difference worth stating out loud.
+
+Whether calibration is worth it. AWQ and GPTQ are the only calibrated methods here and they finish at opposite ends of the 4-bit band, at different group sizes from everything they would be compared against. This essay describes what each does and what each cost. It cannot tell you that calibration does or does not pay.
+
+**Anything at all resting on MMLU.** This is the strongest caveat in the essay and it is stronger than it was when the work started. Rescoring four checkpoints on 200 questions collapsed an apparent six-point spread into 2.5 points, reversed the ordering, and put two quantized checkpoints above fp16. The 50-question figures reported throughout are a check against catastrophe, nothing more.
+
+Speed across machines, or across backends on one machine. Tokens per second is a property of a checkpoint, a kernel and a chip together, and moving any of the three moves the number, sometimes by enough to reverse its sign.
+
+None of that makes the measurements less useful. It makes them measurements of specific configurations rather than verdicts on algorithms, which is what two machines and nine checkpoints can honestly produce.
 
 ---
 
 ## Running it yourself
-
-Every number above comes from the `model-quantization/` folder of https://github.com/adimyth/llm-inference-experiments
-
-One folder per method, each holding the same four scripts plus a README explaining the method: `quantize.py`, `perplexity.py`, `mmlu.py`, `throughput.py`.
 
 | Folder | Method |
 | --- | --- |
@@ -275,6 +487,10 @@ One folder per method, each holding the same four scripts plus a README explaini
 | [`kquants`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/kquants) | `Q4_K_M`, `Q5_K_M`, `Q8_0` |
 | [`mlx`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/mlx) | MLX 4-bit, group size 64 |
 | [`hqq`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/hqq) | HQQ 4-bit, group size 64 |
+| [`awq`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/awq) | AWQ 4-bit, group size 128, CUDA only |
+| [`gptq`](https://github.com/adimyth/llm-inference-experiments/tree/main/model-quantization/gptq) | GPTQ 4-bit, group size 128, CUDA only |
+
+The two CUDA folders come with [`setup_cuda.sh`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/setup_cuda.sh), which builds the environment on any NVIDIA box, and a committed [`requirements-cuda.lock`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/requirements-cuda.lock) pinning all 113 packages, because `llmcompressor` moves fast enough that an unpinned number stops being reproducible within months.
 
 Four things sit at the root because duplicating them would break the comparison: [`perplexity_core.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/perplexity_core.py) holds the perplexity convention, [`mmlu_tasks.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/mmlu_tasks.py) holds the fixed 50 questions, [`results_io.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/results_io.py) merges each metric into one results file, and [`plot.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/model-quantization/plot.py) draws the charts above.
 
@@ -282,6 +498,7 @@ Three gotchas, if you build this yourself:
 
 - **`lm_eval`'s `gguf` model type needs a server that returns logprobs for echoed text, not just newly generated tokens.** llama.cpp's own `llama-server` doesn't do this. Only `llama_cpp.server`, from the separate `llama-cpp-python[server]` package, does.
 - **`lm_eval --limit N` is a plain positional slice, not a random sample.** The same 50 questions apply to every checkpoint, not a fresh sample each run.
+- **A folder named after a real package will be imported as one.** This project has method folders called `mlx/` and `hqq/`, and the scripts put the repo root on `sys.path` to import shared helpers. That makes `importlib.util.find_spec("mlx")` succeed on an empty namespace package, `transformers` caches "MLX is installed" at import time, and the first thing to hit its MLX branch dies with `No module named 'mlx.core'`. Ordinary forward passes never reach that branch. `llmcompressor`'s fx tracing does, so AWQ failed on a machine with no MLX anywhere near it. Import `transformers` before the repo root goes on the path, or take the root back off once the helpers are loaded.
 - **HQQ's quantization and reload functions default to `device='cuda'`.** On a Mac, that either crashes or reloads onto the wrong device without warning. Pass `device='mps'` explicitly everywhere. This fixes correctness, not the generation speed above: that's a separate backend issue, covered in the HQQ section.
 
 ---
@@ -306,17 +523,70 @@ The check worth running is both implementations against the same unquantized wei
 
 | Implementation | fp16 perplexity |
 | --- | --- |
-| `llama-perplexity` | 7.395 |
-| This project's loop | 7.365 |
+| `llama-perplexity`, C++ and Metal | 7.3950 |
+| This project's PyTorch loop | 7.3648 |
+| This project's MLX loop | 7.3642 |
 
-They land 0.4% apart, which is about what fp16 kernel differences between llama.cpp's Metal path and PyTorch's MPS backend come to. That agreement is what licenses putting a GGUF checkpoint and an MLX checkpoint in the same table, and it is why MLX and HQQ are quoted against 7.365 while RTN and the k-quants are quoted against 7.395.
+Three implementations, three frameworks, the same weights. The two llama.cpp and PyTorch figures land 0.4% apart, about what fp16 kernel differences between Metal and MPS come to. The MLX loop agrees with the PyTorch one to **0.007%**.
+
+That third row was the last one added, and it was added because it was missing. MLX is a genuinely separate framework, so `mlx/perplexity.py` has its own model loading and its own loss computation; only the windowing convention is shared. Until an fp16 control ran through it, MLX's quantized number was being compared against a baseline produced by code that had never been checked against it, which is the same structural mistake as the windowing bug below, one level up. It passed. It could have failed, and nothing else in the project would have caught it.
+
+The same loop was also run on both an M4 Pro and an L40S, giving 7.3648 and 7.3649. Perplexity here is a property of the weights, not the machine.
+
+That agreement is what licenses putting a GGUF checkpoint, an MLX checkpoint and a CUDA-quantized checkpoint in the same table, and it is why MLX, HQQ, AWQ and GPTQ are quoted against 7.365 while RTN and the k-quants are quoted against 7.395.
 
 Scoring the whole 512-token window instead of the second half gives **9.460** on those same fp16 weights. Neither number is wrong on its own terms. But a checkpoint measured one way cannot be read against a baseline measured the other, and the gap between the two conventions is larger than the gap between any two quantization methods in this essay.
 
 ---
 
+## The fifty-question mirage
+
+The perplexity bug above was caught by running two implementations and comparing. Here is what happened when the same suspicion was pointed at the other metric.
+
+Every MMLU number in this essay comes from a fixed 50-question subset, chosen so that seven checkpoints could be scored in an evening rather than a week. Fifty questions was always acknowledged as coarse. It turned out to be worse than coarse.
+
+Four checkpoints were rescored on **200 questions**. Because `lm_eval`'s `--limit` is a positional slice with no shuffling, the larger set is a strict superset: the same 50 questions, plus 150 more.
+
+| | 50q | 200q |
+| --- | --- | --- |
+| fp16 | **82.0%** | 76.5% |
+| MLX 4-bit | 76.0% | **77.5%** |
+| AWQ 4-bit | 78.0% | 77.0% |
+| GPTQ 4-bit | 76.0% | 75.0% |
+
+At 50 questions the story is clean and quotable: fp16 leads by four points, and 4-bit quantization costs four to six points of accuracy. At 200 questions that story does not survive. The four land within 2.5 points of each other, **two quantized checkpoints score above the unquantized model**, and the ordering has almost completely reversed. MLX went from joint last to first.
+
+Because the sets nest, the culprit can be isolated. Splitting out the 150 questions the small run never saw:
+
+| | First 50 | Questions 51 to 200 |
+| --- | --- | --- |
+| fp16 | 82.0% | **74.7%** |
+| MLX 4-bit | 76.0% | **78.0%** |
+| AWQ 4-bit | 78.0% | 76.7% |
+| GPTQ 4-bit | 76.0% | 74.7% |
+
+**fp16 was not better. It got lucky.** The first five questions per task happened to be ones the unquantized model answered correctly, and on the other 150 it comes last. The apparent cost of quantization was an artifact of which questions got asked.
+
+The sharpest way to put it: **MLX has the worst perplexity of these four, +7.9%, and the best 200-question MMLU.** Take the accuracy table at face value and MLX is the strongest method in this essay. Perplexity, measured over 144K scored tokens instead of 200 questions, says it is the weakest. Only one of those two metrics is resolving anything at this sample size.
+
+The arithmetic was always there to be read. At 50 questions, the 95% interval on an accuracy near 80% is about **±11 points**. Every gap in the original table sat inside it. A two-point difference is one question. At 200 questions the interval narrows to about ±6 points, which is still wide enough that the remaining spread means nothing.
+
+So the honest conclusion is not that quantization is free. Perplexity, measured over 144K scored tokens with an error under 1%, separates these checkpoints cleanly and consistently. It is that **MMLU at this scale cannot detect what perplexity can see plainly**, and a subset small enough to be convenient is small enough to manufacture a result.
+
+The 50-question figures are still reported throughout this essay, because they are what the other checkpoints have. They should be read as a check that nothing is catastrophically broken, and never as a ranking.
+
+Two metrics, two lessons, and the same shape to both. Perplexity needed a second implementation before its numbers meant anything. MMLU needed four times the questions before its numbers stopped meaning something they shouldn't.
+
+---
+
 ## What it comes to
 
-Quantization is not one number. The methods here span 4 to 8 bits and land in a clean order once measured on one scale: `Q8_0` costs nothing worth counting, the k-quants buy back most of what 4 bits gives up, and the three 4-bit methods finish within 2.4 points of each other despite three different ideas about how to round. `Q4_K_M` is the one that earns its keep, matching RTN's size and beating it on both quality metrics.
+Quantization is not one number. Bits still dominate, and inside one family the ordering is exactly what you would guess: `Q8_0` costs nothing worth counting, `Q5_K_M` about a point, `Q4_K_M` about three. `Q4_K_M` is the one that earns its keep, matching RTN's size for roughly half the perplexity cost, measured by the same tool.
 
-A different model or a different machine can reorder all of it. Quantize the model you actually run, and measure it against the model it came from.
+Below that the picture stops being a ranking. Five 4-bit methods, including two that read real text before deciding anything, finish inside a 2.6-point band while differing in group size, library and measurement tool all at once. The two calibrated methods land at opposite ends of it.
+
+What surprised me was not any method. It was how much work it took to make the numbers mean anything. Perplexity needed three implementations agreeing before a cross-format comparison was legitimate, and the windowing convention alone moved the fp16 baseline from 7.36 to 9.46. MMLU needed four times the questions before an apparent six-point cost turned out to be which questions got asked. Generation speed reversed direction between two machines running the same checkpoint.
+
+The methods are the easy part. Most of them are twenty lines of arithmetic you can work through on paper, and this essay does. Measuring them so the answers survive contact with a second implementation is the part that takes the time, and it is the part worth copying.
+
+A different model or a different machine can reorder all of it. Quantize the model you actually run, measure it against the model it came from, and measure it twice.
