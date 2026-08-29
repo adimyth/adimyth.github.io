@@ -19,6 +19,8 @@ const lora = Lora({
 
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
+  weight: "variable",
+  style: ["normal", "italic"],
   variable: "--font-source-serif",
   display: "swap",
 });

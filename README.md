@@ -32,6 +32,32 @@ CLAUDE_TMUX_TARGET=writing:0.0 npm run dev
 
 The inbox is bound only to `127.0.0.1:3947`, accepts requests only from the local site, and sends text only to the fixed pane in `CLAUDE_TMUX_TARGET`. It is not included in the production export.
 
+## Essay MDX elements
+
+Use these elements sparingly to give an argument shape without turning an essay into documentation.
+
+```mdx
+<Callout kind="takeaway" title="The point">
+  The concise conclusion a reader should carry forward.
+</Callout>
+
+<Callout kind="caveat">
+  The important limitation or condition.
+</Callout>
+
+<Summary>
+  A short recap at the end of a long section.
+</Summary>
+
+<Figure src="/diagrams/example.svg" alt="A description of the diagram" caption="A concise figure caption." takeaway="The one conclusion the diagram makes clear." />
+
+<TableNote>
+  The conclusion readers should draw from the table above.
+</TableNote>
+```
+
+Fenced code blocks automatically receive a language label and copy button. Blockquotes remain reserved for quotations.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

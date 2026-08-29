@@ -1,14 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Menu } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
-import rehypeKatex from "rehype-katex";
 import "highlight.js/styles/atom-one-dark.css";
-import "katex/dist/katex.min.css";
 import { getAllEssays, getEssay, formatEssayDate } from "@/lib/essays";
 import remarkUnwrapImages from "@/lib/remark-unwrap-images";
 import EssayImage from "@/components/EssayImage";
@@ -16,6 +13,11 @@ import EssayVideo from "@/components/EssayVideo";
 import LinkPreview from "@/components/LinkPreview";
 import QuantizationCharts from "@/components/QuantizationCharts";
 import ClaudeHandoff from "@/components/ClaudeHandoff";
+import Callout from "@/components/Callout";
+import EssayCodeBlock from "@/components/EssayCodeBlock";
+import EssayFigure from "@/components/EssayFigure";
+import SectionSummary from "@/components/SectionSummary";
+import TableNote from "@/components/TableNote";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
 import { profile } from "@/lib/data";
 
@@ -51,6 +53,14 @@ function EssayHeading({
     <h2 id={headingId(headingText(children))} className={`scroll-mt-6 ${className ?? ""}`} {...props}>
       {children}
     </h2>
+  );
+}
+
+function EssayTable({ children, ...props }: ComponentPropsWithoutRef<"table">) {
+  return (
+    <div className="essay-table-scroll">
+      <table {...props}>{children}</table>
+    </div>
   );
 }
 
@@ -140,12 +150,9 @@ export default async function EssayPage({ params }: Props) {
         </h1>
 
         {chapters.length > 0 && (
-          <nav
-            aria-label="Essay chapters"
-            className="mb-10 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] px-5 py-4 min-[1200px]:hidden"
-          >
+          <nav aria-label="Essay chapters" className="mb-10 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] px-5 py-4 min-[1600px]:hidden">
             <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
-            <ol className="mt-3 grid gap-y-2 text-sm">
+            <ol className="mt-4 grid gap-y-3 text-sm">
               {chapters.map((chapter) => (
                 <li key={chapter.id}>
                   <a
@@ -177,11 +184,11 @@ export default async function EssayPage({ params }: Props) {
         <div id="essay-content" className="prose-essay">
           <MDXRemote
             source={content}
-            components={{ img: EssayImage, EssayVideo, LinkPreview, QuantizationCharts, h2: EssayHeading }}
+            components={{ img: EssayImage, pre: EssayCodeBlock, table: EssayTable, EssayVideo, LinkPreview, QuantizationCharts, Callout, Figure: EssayFigure, Summary: SectionSummary, TableNote, h2: EssayHeading }}
             options={{
               mdxOptions: {
-                remarkPlugins: [remarkGfm, remarkMath, remarkUnwrapImages],
-                rehypePlugins: [rehypeKatex, rehypeHighlight],
+                remarkPlugins: [remarkGfm, remarkUnwrapImages],
+                rehypePlugins: [rehypeHighlight],
               },
             }}
           />
@@ -207,27 +214,30 @@ export default async function EssayPage({ params }: Props) {
         </article>
 
         {chapters.length > 0 && (
-          <aside className="absolute inset-y-0 left-full ml-4 hidden w-44 min-[1200px]:block">
-            <nav
-              aria-label="Essay chapters"
-              className="sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto border-l border-[#d9d4cc] pl-5 pr-1"
-            >
-              <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
-              <ol className="mt-4 grid gap-y-2 text-sm leading-6">
-                {chapters.map((chapter) => (
-                  <li key={chapter.id}>
-                    <a
-                      href={`#${chapter.id}`}
-                      className="text-[#4f4945] transition-colors hover:text-[#111111]"
-                    >
-                      {chapter.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </nav>
+          <aside className="fixed right-8 top-8 z-20 hidden min-[1600px]:block">
+            <details open className="w-11 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] shadow-sm open:w-72">
+              <summary className="flex size-11 cursor-pointer list-none items-center justify-center text-[#4f4945] [&::-webkit-details-marker]:hidden" aria-label="Show chapters">
+                <Menu className="size-5" />
+              </summary>
+              <nav aria-label="Essay chapters" className="border-t border-[#e4ded6] px-4 py-4">
+                <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
+                <ol className="mt-4 grid gap-y-2 text-sm leading-6">
+                  {chapters.map((chapter) => (
+                    <li key={chapter.id}>
+                      <a
+                        href={`#${chapter.id}`}
+                        className="text-[#4f4945] transition-colors hover:text-[#111111]"
+                      >
+                        {chapter.title}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            </details>
           </aside>
         )}
+
       </div>
     </main>
   );

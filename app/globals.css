@@ -194,13 +194,81 @@
   margin-bottom: 0;
 }
 
+.prose-essay .essay-callout,
+.prose-essay .essay-summary {
+  margin: 2.25rem 0;
+  border: 1px solid #d8cec2;
+  border-radius: 0.85rem;
+  padding: 1.2rem 1.3rem 1.25rem;
+}
+
+.prose-essay .essay-callout {
+  border-left-width: 3px;
+  background: #f0ebe3;
+}
+
+.prose-essay .essay-callout-takeaway {
+  border-left-color: #9c7b55;
+  background: #f3eadb;
+}
+
+.prose-essay .essay-callout-caveat {
+  border-left-color: #ad6655;
+  background: #f5e8e3;
+}
+
+.prose-essay .essay-callout-decision {
+  border-left-color: #627a6b;
+  background: #e8efe9;
+}
+
+.prose-essay .essay-summary {
+  background: #fffdf9;
+}
+
+.prose-essay .essay-callout-label,
+.prose-essay .essay-summary-label {
+  margin: 0 0 0.55rem;
+  color: #5d5147;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prose-essay .essay-callout-content > :last-child,
+.prose-essay .essay-summary-content > :last-child {
+  margin-bottom: 0;
+}
+
+.prose-essay .equation-text {
+  margin: 2.25rem 0;
+  color: #322c28;
+  font-family: var(--font-source-serif), Georgia, serif;
+  font-size: 1.13em;
+  letter-spacing: 0.015em;
+  line-height: 1.45;
+}
+
+.prose-essay .math-inline {
+  color: #322c28;
+  font-family: var(--font-source-serif), Georgia, serif;
+  font-size: 1.03em;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .prose-essay code {
   font-family: var(--font-fira-code), "Courier New", monospace;
   font-size: 0.9em;
-  background: #e2ddd3;
+  white-space: nowrap;
+  background: #eee7dc;
+  border: 1px solid #d6c9ba;
   padding: 0.15em 0.35em;
   border-radius: 4px;
-  color: #1f1b19;
+  color: #40342b;
 }
 
 .prose-essay pre {
@@ -215,8 +283,58 @@
   border: 1px solid #4a433f;
 }
 
+.prose-essay .essay-code-block {
+  overflow: hidden;
+  margin: 2rem 0;
+  border: 1px solid #4a433f;
+  border-radius: 0.75rem;
+  background: #1b1917;
+}
+
+.prose-essay .essay-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.5rem;
+  border-bottom: 1px solid #4a433f;
+  padding: 0 0.8rem 0 1rem;
+  color: #bfb8af;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.prose-essay .essay-code-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  background: transparent;
+  color: #d7d0c7;
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.prose-essay .essay-code-header button:hover {
+  background: #37312e;
+  color: #fffaf0;
+}
+
+.prose-essay .essay-code-block pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
 .prose-essay pre code {
   background: transparent !important;
+  border: none;
+  white-space: pre;
   padding: 0;
   color: inherit;
   font-family: var(--font-fira-code), "Courier New", monospace;
@@ -236,16 +354,21 @@
   margin: 1.75rem 0 0.6rem;
 }
 
+.prose-essay .essay-table-scroll {
+  width: 100%;
+  margin: 2rem 0 0.7rem;
+  border: 1px solid #d9d4cc;
+  border-radius: 0.75rem;
+  background: #fffdf9;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .prose-essay table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.75rem 0;
-  font-size: 0.9rem;
   font-family: var(--font-inter), sans-serif;
-  /* wide tables scroll inside their own box instead of breaking the page */
-  display: block;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  font-size: 0.9rem;
 }
 
 /* a table wide enough to scroll needs cells that do not collapse to one word per line,
@@ -272,6 +395,9 @@
 
 .prose-essay .wide-table table {
   font-size: 0.8rem;
+}
+
+.prose-essay .wide-table .essay-table-scroll {
   margin: 0;
 }
 
@@ -286,7 +412,8 @@
 }
 
 .prose-essay thead {
-  border-bottom: 2px solid #d9d4cc;
+  border-bottom: 1px solid #cbc2b7;
+  background: #eee9e1;
 }
 
 .prose-essay th {
@@ -294,9 +421,8 @@
   padding: 0.6rem 0.75rem;
   font-weight: 700;
   color: #111111;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
 }
 
 .prose-essay td {
@@ -305,6 +431,18 @@
   border-bottom: 1px solid #ede9e0;
   vertical-align: top;
   line-height: 1.5;
+}
+
+.prose-essay td:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+}
+
+.prose-essay .essay-table-note {
+  margin: 0 0 2rem;
+  color: #625850;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .prose-essay tr:last-child td {
@@ -360,7 +498,7 @@
 }
 
 .prose-essay figure {
-  margin: 1.75rem 0;
+  margin: 2.25rem 0;
 }
 
 .prose-essay figcaption {
@@ -369,6 +507,14 @@
   color: #4f4945;
   margin-top: 0.5rem;
   font-style: italic;
+}
+
+.prose-essay .essay-figure-takeaway {
+  margin: 0.85rem 0 0;
+  color: #625850;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .quantization-charts {
