@@ -34,16 +34,14 @@ const firaCode = Fira_Code({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "Aditya Mishra · Principal Engineer & AI Engineer",
-  description:
-    "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms. Open to new opportunities.",
+  description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
   icons: {
     icon: "/favicon.svg",
     apple: "/apple-icon",
   },
   openGraph: {
     title: "Aditya Mishra · Principal Engineer & AI Engineer",
-    description:
-      "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms.",
+    description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
     url: SITE_URL,
     siteName: "Aditya Mishra",
     type: "website",
@@ -51,8 +49,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Aditya Mishra · Principal Engineer & AI Engineer",
-    description:
-      "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms.",
+    description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
   },
 };
 

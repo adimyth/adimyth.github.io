@@ -1,6 +1,7 @@
 import Image from "next/image";
-import { profile, upcomingEvent } from "@/lib/data";
-import { Mail, Download } from "lucide-react";
+import Link from "next/link";
+import { profile } from "@/lib/data";
+import { BookOpen, Mail } from "lucide-react";
 import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
 
 export default function Hero() {
@@ -43,13 +44,13 @@ export default function Hero() {
               <Mail className="w-4 h-4" />
               Get in touch
             </a>
-            <a
-              href="#resume"
+            <Link
+              href="/"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 border-[#111111] text-[#111111] font-semibold hover:bg-[#ede9e0] transition-colors"
             >
-              <Download className="w-4 h-4" />
-              Resume
-            </a>
+              <BookOpen className="w-4 h-4" />
+              Read essays
+            </Link>
           </div>
 
           <div className="flex items-center gap-5 pb-10 md:pb-0">

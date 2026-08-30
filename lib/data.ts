@@ -9,10 +9,7 @@ export const upcomingEvent = {
 export const profile = {
   name: "Aditya Mishra",
   title: "Principal Engineer & AI Engineer",
-  tagline:
-    "9+ years building distributed systems and the AI products that run on them, from real-time data infrastructure and platform services at enterprise scale to LLM applications, voice agents, and multi-agent platforms. I write about the trade-offs and hard lessons from production.",
-  about:
-    "I build both halves of the stack: the distributed systems that carry the load, and the AI products customers actually touch. Most of my work is the unglamorous part in between, which is usually what decides whether the rest of it holds.",
+  tagline: "I’m a Principal Engineer with 9+ years of experience building foundational backend and platform systems, and the production AI applications that depend on them. My current work focuses on LLM applications, voice agents, and multi-agent systems. I write about the engineering decisions that make those systems reliable in production.",
   email: "mishraaditya6991@gmail.com",
   phone: "+91 9029080380",
   github: "https://github.com/adimyth",
