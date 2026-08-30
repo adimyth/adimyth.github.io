@@ -248,9 +248,9 @@ That is 1.83× faster, and the text is identical. The mechanism sits in the thir
 
 The fourth and fifth rows are the price.
 
-**The draft ran 90 times to save 49 runs of the target.** Trading 90 operations for 49 sounds like a bad deal until you price them. A draft pass costs 11.2 ms; a target pass costs 66.3 ms. So the 90 draft passes cost about 1.0 second, and the 49 target passes they replaced would have cost 3.2 seconds. That gap is the speedup.
+**The draft ran 90 times to save 49 runs of the target.** Seventy-five of those passes made guesses. The other fifteen fed the target's correction back in before the next round could start. Trading 90 operations for 49 sounds like a bad deal until you price them. A draft pass costs 11.2 ms; a target pass costs 66.3 ms. So the 90 draft passes cost about 1.0 second, and the 49 target passes they replaced would have cost 3.2 seconds. That gap is the speedup.
 
-Then the other row. The draft produced 90 tokens and **21 of them were computed and then deleted**. Those tokens were generated, checked, rejected, and thrown away along with everything the draft built after them.
+Then the other row. The draft made 75 guesses, and **21 of them were computed and then deleted**. Those tokens were generated, checked, rejected, and thrown away along with everything the draft built after them.
 
 A guess sitting behind a rejected guess is worthless however good it was, because it continues a sentence that is not happening.
 
@@ -279,7 +279,7 @@ The obvious move is to raise `k`. Guess sixteen tokens ahead instead of five and
 
 </div>
 
-![Speedup, acceptance and waste against k](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/speculative-decoding/results/k_sweep_light.png)
+<SpecKSweepChart />
 
 Target passes bottom out at 11 and stop falling. Draft passes keep climbing to 187. Discarded tokens go from 3 to 119. Past `k=5` you are buying waste rather than speed.
 
@@ -289,7 +289,7 @@ Two forces cause that, and they work against you at the same time.
 
 The fourth guess only counts if the first three were also right, because everything behind a rejection is discarded. At 72% per token, four correct in a row happens 27% of the time and eight in a row happens 7%. Guess far enough ahead and most of what you produce sits behind a mistake.
 
-[Leviathan et al.](https://arxiv.org/abs/2211.17192) put a number on it. Write `a` for the acceptance rate: the chance that any single guess is the one the target would have written. Expected tokens accepted per round is then
+[Leviathan et al.](https://arxiv.org/abs/2211.17192) put a number on it. Write `a` for the acceptance rate: the chance that any single guess is the one the target would have written. Expected output tokens per round is then
 
 ```
 (1 - a^(k+1)) / (1 - a)
@@ -299,7 +299,7 @@ That expression climbs with `k` and then flattens out at `1/(1-a)`, however larg
 
 Draft cost does not flatten. Every extra token of lookahead is one more draft pass, every round, whether it survives or not.
 
-**The benefit has a ceiling. The cost does not.** At 72% acceptance the ceiling is 3.6 accepted tokens per round. So `k=16` can never average better than 3.6, however often you run it, and it pays for sixteen guesses each time to get there.
+**The benefit has a ceiling. The cost does not.** At 72% acceptance the ceiling is 3.6 output tokens per round: about 2.6 surviving draft guesses plus one target token. So `k=16` can never average better than 3.6, however often you run it, and it pays for sixteen guesses each time to get there.
 
 ### And the checking stops being free
 
@@ -331,7 +331,7 @@ The five prompts live in [`workloads.py`](https://github.com/adimyth/llm-inferen
 | factual list | 1.60× | 60.0% | 34 |
 | structured | 1.36× | 47.0% | 53 |
 
-![Speedup by workload](https://raw.githubusercontent.com/adimyth/llm-inference-experiments/main/speculative-decoding/results/workloads_light.png)
+<SpecWorkloadChart />
 
 Same models, same hardware, same `k`. The text alone moves the result from 1.36× to 2.40×.
 
