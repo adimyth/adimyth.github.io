@@ -1,18 +1,14 @@
 ---
 title: "LLM Inference: KV Caching"
-description: "Generating a response costs quadratic work unless you cache. The KV cache fixes that and hands you a memory bill instead, and that bill is what decides how many people can use your product at once."
+description: "Why a model repeats the growing conversation while it writes, how a KV cache avoids the waste, and why the memory bill decides how many people a GPU can serve at once."
 date: "2026-08-15"
-readTime: "12 min read"
+readTime: "14 min read"
 featured: true
 ---
 
-Ask a language model for a 500 word answer. Without a cache, producing the 500th token costs about 500 times what the first one cost, because the model recomputes everything it worked out on the step before.
+Ask a language model for a long answer. Without a cache, each new token makes it go back over the answer so far. By the end, it is doing work it did hundreds of tokens ago.
 
 **The KV cache is the fix.** It is the first optimisation anyone serving an LLM turns on, and without it nothing you use today would be affordable. It is also the reason a GPU runs out of memory long before it runs out of compute.
-
-I have been working through [learn-inference.com](https://learn-inference.com/) to get systematic about how inference behaves, rather than picking it up in fragments from incident reviews. This is my understanding of the caching part.
-
-Every number below came from running the code that produces it, on a MacBook Pro with an M4 Pro and 48GB of memory.
 
 <LinkPreview href="https://github.com/adimyth/llm-inference-experiments" title="adimyth/llm-inference-experiments" description="Reproducible scripts and measurements behind the LLM inference essays." />
 
@@ -36,8 +32,6 @@ Attention(Q, K, V) = softmax( Q Kᵀ / √d ) V
 
 That asymmetry is the whole trick. **Q changes on every step and is thrown away. K and V belong to tokens that already exist and never change again**, because attention is causal and nothing arriving later alters what came before.
 
-Only two of the three are worth keeping, and they are the two that are not Q.
-
 ---
 
 ## What generation costs without a cache
@@ -53,7 +47,7 @@ step 3:  [The, capital, of]           → compute K,V for 3 tokens
 step 4:  [The, capital, of, France]   → compute K,V for 4 tokens
 ```
 
-Generating *n* tokens costs `1 + 2 + 3 + ... + n` positions of work. **The cost of a response grows with the square of its length**, and every bit of the growth is recomputing something identical to what it computed a moment ago.
+The simple count is `1 + 2 + 3 + ... + n`: every step runs an ever-longer sequence. Full attention is more expensive still, because it also recomputes attention across each of those prefixes. The old tokens keep getting worked over even though nothing about them has changed.
 
 That is what the KV cache fixes: **stop recomputing K and V for tokens that have not changed.**
 
@@ -67,7 +61,7 @@ step 2:  [capital]  → compute K,V for "capital", append to cache
 step 3:  [of]       → compute K,V for "of",      append to cache
 ```
 
-Per-step work becomes constant instead of growing, so generating *n* tokens is linear rather than quadratic.
+KV caching stops the model from recomputing the earlier tokens’ keys and values at every step. The new token must still attend over the cached history, so full-attention decode work grows with context length. But the cache removes the redundant prefix computation that otherwise dominates generation. With a fixed sliding-attention window, even that remaining attention work is bounded.
 
 The code below is the textbook version: a Python loop calling `transformers` one token at a time, where the cache is a single argument. **That is not how anything is served in production.** Real inference runs on an engine, vLLM or SGLang or TensorRT-LLM, and everything later in this essay, paged attention and prefix caching included, lives in the engine rather than in `transformers`. The loop is here because it isolates the mechanism, not because it resembles a serving stack.
 
@@ -85,7 +79,7 @@ def generate(prompt_ids, new_tokens, use_cache):
     return ids
 ```
 
-I ran that against **GPT-2 (124M), fp32, on CPU, from a 64 token prompt, greedy decoding**, timing both paths back to back and reporting the **median of three runs** per cell. Small model, no GPU, so read the shape rather than the absolute times.
+I ran that against **GPT-2 (124M), fp32, on CPU, from a 64 token prompt, greedy decoding**, timing both paths back to back and reporting the **median of three runs** per cell. Small model, no GPU. I later ran the same benchmark on a rented GPU, and neither the absolute times nor the shape survived the move. That is the next section.
 
 Each row doubles the output length, so the two `vs previous row` columns show what one doubling costs:
 
@@ -97,9 +91,27 @@ Each row doubles the output length, so the two `vs previous row` columns show wh
 | 256 | 14.99s | 2.9× | 1.84s | 2.0× | 8.1× |
 | 512 | 50.61s | 3.4× | 3.96s | 2.2× | 12.8× |
 
-Read the two middle columns against each other. **Cached, a doubling costs 2×, every time.** That is linear: twice the tokens, twice the work. **Uncached, the cost of a doubling is itself rising**, 2.3× then 2.4× then 2.9× then 3.4×, heading toward the 4× that pure quadratic growth would charge.
+The table shows the shape of this particular run, not a law about attention. On this small CPU model, cached time almost doubles as output doubles. The new query still looks across a longer and longer cache; at these lengths, the rest of the per-token work is what dominates the clock. The uncached path gets expensive faster because it does that work **and** goes back through the prefix.
 
-That gap is why the speedup column climbs from 3.9× to 12.8× rather than holding steady. A constant multiplier would mean the cache made things faster. A growing one means it changed the shape of the curve, and the gap keeps widening for as long as the answer keeps going.
+That is why the speedup column climbs from 3.9× to 12.8× in this run rather than holding steady. It is not a fixed multiplier bolted onto the same calculation. The cache removes a growing pile of repeated work as the answer gets longer.
+
+## The same benchmark on a GPU
+
+I reran the same script on a rented NVIDIA L40S, changing one thing at a time:
+
+| Where it ran | Model | 32 | 128 | 512 | 1024 | 2048 |
+| --- | --- | --- | --- | --- | --- | --- |
+| CPU | GPT-2 124M, fp32 | 3.9× | 5.7× | 12.8× | | |
+| L40S | GPT-2 124M, fp32 | 1.0× | 1.0× | 1.1× | | |
+| L40S | Llama 3.1 8B, fp16 | 1.3× | 1.3× | 1.8× | 2.6× | 4.5× |
+
+Move GPT-2 from CPU to GPU with nothing else changed and the 512 token speedup falls from 12.8× to 1.1×. The cache did not get worse. The GPU made the expensive path cheap, so there was less left to save: uncached generation dropped from 50.61s to 3.32s, while cached generation barely moved, 3.96s to 3.12s.
+
+Look at that second pair. A cached decode step is one token through the model, and the GPU is barely faster at it than the CPU was, because hardly any of those milliseconds are arithmetic. They are the fixed cost of asking: Python, kernel launches, pulling the weights out of memory. A faster card does not help with any of that.
+
+Llama 8B recovers some of it, because it is large enough for the arithmetic to matter again. Its speedup then climbs with output length exactly as the CPU run's did: 1.8× at 512 tokens, 2.6× at 1024, 4.5× at 2048. I did not measure past 2048, and the trend was still rising there.
+
+**So the 12.8× above is not a number to carry anywhere.** The direction transfers: caching saves more the longer the output runs. How much it saves depends on your hardware and your model, and on a fast GPU with short outputs it is less than you would guess.
 
 ---
 
@@ -122,8 +134,9 @@ Setting `seq_len` to each model's full context window gives the worst case, one 
 | Llama-2-7B | Multi-head, 32 KV heads | 4K | 2.00 GB |
 | Llama-3-8B | Grouped-query, 8 KV heads | 8K | 1.00 GB |
 | Mistral-7B-Instruct-v0.3 | Grouped-query, 8 KV heads | 32K | 4.00 GB |
+| Llama-3.1-8B | Grouped-query, 8 KV heads | 128K | 16.00 GB |
 
-Llama-3 serves twice Llama-2's context for half the cache, and grouped-query attention is the entire reason. Keep all 32 query heads, but let groups of four share one key and value head. Each query head still attends its own way; there are four times fewer things to store.
+Llama-3 serves twice Llama-2's context for half the cache. Grouped-query attention is why that longer context needs less cache memory: keep all 32 query heads, but let groups of four share one key and value head. Each query head still attends its own way; there are four times fewer things to store.
 
 Hold the context fixed to see what that is worth. Mistral serves 32K for 4 GB. **Build the same model with multi-head attention instead and that same 32K conversation costs 16 GB**, against roughly 14 GB of fp16 weights. The cache would outweigh the model. Long context did not arrive because memory got cheaper. It arrived because architectures stopped caching so much per token.
 
@@ -139,7 +152,7 @@ That is why the row above names a version. Two checkpoints of the same architect
 
 The cost is real: tokens outside the window are gone, and the model cannot attend to them. Long-range recall is what buys the memory back.
 
-The formula is worth checking rather than trusting. Reading the tensors GPT-2 retains during generation against what the arithmetic predicts:
+The formula is worth checking rather than trusting. I read the tensors GPT-2 retains during generation and compared them against what the arithmetic predicts:
 
 | seq_len | Measured | Formula |
 | --- | --- | --- |
@@ -147,11 +160,13 @@ The formula is worth checking rather than trusting. Reading the tensors GPT-2 re
 | 320 | 22.50 MB | 22.50 MB |
 | 576 | 40.50 MB | 40.50 MB |
 
-Exact at every checkpoint, flat at 0.0703 MB per token. **The cache is one of the few things in a serving stack you can size on paper and be right about.**
+Exact at every checkpoint, flat at 0.0703 MB per token.
+
+I repeated the check on Llama 3.1 8B, grouped-query rather than multi-head, fp16 rather than fp32, on a GPU rather than a CPU, and got the same answer: measured matches formula exactly at all four checkpoints, flat at 128 KiB per token. **The cache is one of the few things in a serving stack you can size on paper and be right about.**
 
 ## The trade you made
 
-**A KV cache does not make inference cheap. It converts a compute problem into a memory problem.** You stopped paying in FLOPs and started paying in gigabytes.
+**A KV cache does not make inference cheap. It trades repeated computation for memory that has to stay alive for the whole conversation.** The model still does work on every decode step, but the cache is now a second bill, paid in gigabytes for every live request.
 
 Those two resources fail differently, and that is the whole point. Compute is elastic. A busy GPU makes everyone slower, the queue lengthens, latency degrades, and the system keeps serving. **Memory is not elastic.** It fits or it does not. A server with no room left refuses the next session outright.
 
@@ -233,17 +248,15 @@ For a multi-turn product this is the difference between the optimisation working
 
 ## Running this yourself
 
-Two scripts produce everything above.
+I produced every figure in this essay with the three scripts below, and you can rerun them.
 
-The individual scripts are linked below.
+[`kv_cache_size.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/kv_cache_size.py) is arithmetic and nothing else. **It does not load or download any model.** It evaluates the formula above against published config values for those three architectures, then divides free memory by the result to get the concurrency table. Every figure in the two tables above comes from it.
 
-`kv_cache_size.py` is arithmetic and nothing else. **It does not load or download any model.** It evaluates the formula above against published config values for those three architectures, then divides free memory by the result to get the concurrency table. Every figure in the two tables above comes from it.
+[`kv_cache_timing.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/kv_cache_timing.py) is the benchmark. It defaults to GPT-2 on CPU, which is the first table, and takes `--model`, `--device` and `--dtype` for the L40S runs in the second. It generates with and without the cache at each output length, three times per cell, and reports the median.
 
-`kv_cache_timing.py` is the benchmark, and GPT-2 is the only model anything is run against. It downloads roughly 526MB on first use, then generates with and without the cache at each output length, three times per cell, and reports the median.
+[`kv_cache_measured.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/kv_cache_measured.py) produces the validation table. It reads the K and V tensors the model holds and compares them to the formula.
 
-`kv_cache_measured.py` produces the validation table. It reads the K and V tensors the model holds and compares them to the formula.
-
-All three are short enough to read before running. The claim here is that generation is quadratic without a cache and linear with one, and that is checkable in about a minute rather than taken on trust.
+All three are short enough to read before running. They make the cache’s memory cost and the avoided recomputation checkable in about a minute rather than taken on trust.
 
 ---
 
