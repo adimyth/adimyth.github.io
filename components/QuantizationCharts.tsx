@@ -112,16 +112,94 @@ function TradeoffChart() {
   );
 }
 
+export function QuantizationSizeChart() {
+  return <BarChart title="Checkpoint size" detail="GB on disk" metric="size" format={(value) => `${value.toFixed(2)} GB`} />;
+}
+
+export function QuantizationPerplexityChart() {
+  return <BarChart title="Perplexity cost" detail="Wikitext-2, versus fp16" metric="perplexityCost" format={(value) => `+${value}%`} />;
+}
+
+export function QuantizationMmluChart() {
+  return <BarChart title="MMLU accuracy" detail="Fixed 50-question subset" metric="mmlu" format={(value) => `${value.toFixed(0)}%`} />;
+}
+
+export function QuantizationGenerationChart() {
+  return <BarChart title="Generation throughput" detail="tg128, tokens per second" metric="generation" format={(value) => `${value.toFixed(1)} t/s`} note="HQQ's 0.6 t/s is omitted: its default backend dequantizes every layer on every step. AWQ and GPTQ are omitted because they ran on a rented L40S, and tokens per second cannot be read across two machines." />;
+}
+
+// The three GPTQ ablation runs, each one flag different from the shipped
+// configuration, measured on the same L40S against the same fp16 control.
+const GPTQ_RUNS = [
+  { label: "As shipped", detail: "symmetric, chat text", ppl: 7.9588, color: "#5c5470" },
+  { label: "Different seed", detail: "the noise floor", ppl: 7.9575, color: "#5c5470" },
+  { label: "C4 calibration", detail: "web text, not chat", ppl: 7.7972, color: "#4f6d8f" },
+  { label: "Zero-point", detail: "matches AWQ's scheme", ppl: 7.7733, color: "#4f6d8f" },
+];
+const AWQ_PPL = 7.792;
+
+function GptqAblationChart() {
+  const width = 680;
+  const height = 258;
+  const margin = { top: 18, right: 58, bottom: 44, left: 132 };
+  const xMin = 7.74;
+  const xMax = 7.99;
+  const x = (v: number) => margin.left + ((v - xMin) / (xMax - xMin)) * (width - margin.left - margin.right);
+  const rowH = (height - margin.top - margin.bottom) / GPTQ_RUNS.length;
+  const ticks = [7.75, 7.80, 7.85, 7.90, 7.95];
+
+  return (
+    <figure className="quant-chart">
+      <figcaption>
+        <span>One flag at a time, GPTQ</span>
+        <small>Wikitext-2 perplexity · shorter is better · bars start at 7.74, not zero</small>
+      </figcaption>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="GPTQ perplexity across four configurations, against AWQ">
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={x(t)} x2={x(t)} y1={margin.top} y2={height - margin.bottom} className="quant-grid-line" />
+            <text x={x(t)} y={height - margin.bottom + 18} textAnchor="middle" className="quant-axis-label">{t.toFixed(2)}</text>
+          </g>
+        ))}
+        {GPTQ_RUNS.map((r, i) => {
+          const y = margin.top + i * rowH;
+          return (
+            <g key={r.label}>
+              <text x={margin.left - 12} y={y + rowH / 2 - 4} textAnchor="end" className="quant-axis-label" style={{ fontWeight: 600 }}>{r.label}</text>
+              <text x={margin.left - 12} y={y + rowH / 2 + 10} textAnchor="end" className="quant-axis-label" style={{ opacity: 0.62 }}>{r.detail}</text>
+              <rect x={margin.left} y={y + rowH / 2 - 9} width={Math.max(x(r.ppl) - margin.left, 2)} height={18} rx={3} fill={r.color} />
+              <text x={x(r.ppl) + 8} y={y + rowH / 2 + 5} className="quant-point-label">{r.ppl.toFixed(4)}</text>
+            </g>
+          );
+        })}
+        <line x1={x(AWQ_PPL)} x2={x(AWQ_PPL)} y1={margin.top - 4} y2={height - margin.bottom} stroke="#b65c45" strokeWidth={1.5} strokeDasharray="4 3" />
+        <text x={x(AWQ_PPL)} y={margin.top - 8} textAnchor="middle" className="quant-point-label" style={{ fill: "#b65c45" }}>AWQ 7.792</text>
+      </svg>
+      <p className="quant-chart-note">
+        Changing the seed moves GPTQ by 0.0013, which is the noise floor. Giving it a zero-point moves it 0.1855, past AWQ. The gap the defaults produced was the scheme, not the algorithm.
+      </p>
+    </figure>
+  );
+}
+
+export function QuantizationGptqAblationChart() {
+  return <GptqAblationChart />;
+}
+
+export function QuantizationTradeoffChart() {
+  return <TradeoffChart />;
+}
+
 export default function QuantizationCharts() {
   return (
     <section className="quantization-charts" aria-label="Quantization results charts">
       <div className="quant-chart-grid">
-        <BarChart title="Checkpoint size" detail="GB on disk" metric="size" format={(value) => `${value.toFixed(2)} GB`} />
-        <BarChart title="Perplexity cost" detail="Wikitext-2, versus fp16" metric="perplexityCost" format={(value) => `+${value}%`} />
-        <BarChart title="MMLU accuracy" detail="Fixed 50-question subset" metric="mmlu" format={(value) => `${value.toFixed(0)}%`} />
-        <BarChart title="Generation throughput" detail="tg128, tokens per second" metric="generation" format={(value) => `${value.toFixed(1)} t/s`} note="HQQ's 0.6 t/s is omitted: its default backend dequantizes every layer on every step. AWQ and GPTQ are omitted because they ran on a rented L40S, and tokens per second cannot be read across two machines." />
+        <QuantizationSizeChart />
+        <QuantizationPerplexityChart />
+        <QuantizationMmluChart />
+        <QuantizationGenerationChart />
       </div>
-      <TradeoffChart />
+      <QuantizationTradeoffChart />
     </section>
   );
 }

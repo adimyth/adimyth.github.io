@@ -111,6 +111,19 @@
   color: #111111;
 }
 
+.prose-essay .essay-heading-title {
+  display: block;
+}
+
+.prose-essay .essay-heading-subtitle {
+  display: block;
+  margin-top: 0.2rem;
+  color: #5e5650;
+  font-size: 0.78em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
 .prose-essay em {
   font-style: italic;
 }
@@ -258,6 +271,78 @@
   font-style: italic;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.prose-essay .essay-recommendation-list {
+  margin: 1.5rem 0 2.5rem 0.4rem;
+  border-left: 1px solid #d0c8be;
+  list-style: none;
+  padding: 0 0 0 1.4rem;
+}
+
+.prose-essay .essay-recommendation-list > li {
+  list-style-type: none;
+}
+
+.prose-essay .essay-recommendation-start,
+.prose-essay .essay-recommendation-path {
+  position: relative;
+}
+
+.prose-essay .essay-recommendation-start::before,
+.prose-essay .essay-recommendation-path::before {
+  background: #f4f1ea;
+  border: 1px solid #a39b90;
+  border-radius: 999px;
+  content: "";
+  height: 0.55rem;
+  left: -1.7rem;
+  position: absolute;
+  top: 0.4rem;
+  width: 0.55rem;
+}
+
+.prose-essay .essay-recommendation-start::before {
+  background: #322c28;
+  border-color: #322c28;
+}
+
+.prose-essay .essay-recommendation-path {
+  margin-top: 1.25rem;
+}
+
+.prose-essay .essay-recommendation-name {
+  color: #2f2b29;
+  font-family: var(--font-fira-code), "Courier New", monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.prose-essay .essay-recommendation-kicker,
+.prose-essay .essay-recommendation-condition {
+  margin: 0 0 0.3rem;
+  color: #6b625c;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.prose-essay .essay-recommendation-description {
+  margin: 0.35rem 0 0;
+  color: #403a36;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.prose-essay .essay-recommendation-description > :first-child {
+  margin-top: 0;
+}
+
+.prose-essay .essay-recommendation-description > :last-child {
+  margin-bottom: 0;
 }
 
 .prose-essay code {
@@ -475,20 +560,19 @@
   border: 1px solid #d9d4cc;
 }
 
-/* Wide diagrams keep native size; scroll instead of shrinking into the prose column. */
-.prose-essay .diagram-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+/* Sequence diagrams scale to the reading column instead of requiring horizontal scroll. */
+.prose-essay .diagram-fit {
   margin: 1.75rem 0;
   border: 1px solid #d9d4cc;
   border-radius: 0.75rem;
+  overflow: hidden;
   background: #f9f7f3;
 }
 
-.prose-essay .diagram-scroll img {
-  width: auto;
-  max-width: none;
-  min-width: 52rem;
+.prose-essay .diagram-fit img {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: auto;
   margin: 0;
   border: none;
@@ -524,12 +608,12 @@
 
 .quant-chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 
 .quant-chart {
-  margin: 0;
+  margin: 2.25rem 0 1rem;
   border: 1px solid #d9d4cc;
   border-radius: 0.75rem;
   background: #fffdf9;
@@ -690,10 +774,6 @@
 }
 
 @media (max-width: 640px) {
-  .quant-chart-grid {
-    grid-template-columns: 1fr;
-  }
-
   .quant-chart {
     padding: 0.9rem;
   }

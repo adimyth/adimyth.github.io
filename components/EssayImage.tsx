@@ -5,13 +5,12 @@ export default function EssayImage({
   alt = "",
   ...props
 }: ImgHTMLAttributes<HTMLImageElement>) {
-  // Wide sequence diagrams need horizontal scroll; column-fit diagrams do not.
-  const isWideDiagram =
+  const isSequenceDiagram =
     typeof src === "string" && src.includes("/diagrams/complete-flow");
 
-  if (isWideDiagram) {
+  if (isSequenceDiagram) {
     return (
-      <div className="diagram-scroll" role="region" aria-label={alt || "Diagram"}>
+      <div className="diagram-fit" role="region" aria-label={alt || "Diagram"}>
         {/* SVGs from /public; next/image adds little for static export diagrams. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt={alt} {...props} />

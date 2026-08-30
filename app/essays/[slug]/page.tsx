@@ -11,7 +11,9 @@ import remarkUnwrapImages from "@/lib/remark-unwrap-images";
 import EssayImage from "@/components/EssayImage";
 import EssayVideo from "@/components/EssayVideo";
 import LinkPreview from "@/components/LinkPreview";
-import QuantizationCharts from "@/components/QuantizationCharts";
+import { QuantizationGenerationChart, QuantizationGptqAblationChart, QuantizationMmluChart, QuantizationPerplexityChart, QuantizationSizeChart, QuantizationTradeoffChart } from "@/components/QuantizationCharts";
+import { SpecKSweepChart, SpecWorkloadChart } from "@/components/SpeculativeDecodingCharts";
+import RecommendationList, { RecommendationPath, RecommendationStart } from "@/components/RecommendationList";
 import ClaudeHandoff from "@/components/ClaudeHandoff";
 import Callout from "@/components/Callout";
 import EssayCodeBlock from "@/components/EssayCodeBlock";
@@ -39,8 +41,9 @@ function headingId(text: string): string {
 
 function getChapters(source: string) {
   return Array.from(source.matchAll(/^## (.+)$/gm), ([, heading]) => {
-    const title = heading.replace(/[`*_]/g, "");
-    return { id: headingId(title), title };
+    const fullTitle = heading.replace(/[`*_]/g, "");
+    const title = fullTitle.split(":", 1)[0];
+    return { id: headingId(fullTitle), title };
   });
 }
 
@@ -49,9 +52,25 @@ function EssayHeading({
   className,
   ...props
 }: ComponentPropsWithoutRef<"h2">) {
+  const text = headingText(children);
+  const separator = text.indexOf(":");
+  const title = separator === -1 ? null : text.slice(0, separator);
+  const subtitle = separator === -1 ? null : text.slice(separator + 1).trim();
+  const displaySubtitle = subtitle ? `${subtitle.charAt(0).toUpperCase()}${subtitle.slice(1)}` : null;
+
   return (
-    <h2 id={headingId(headingText(children))} className={`scroll-mt-6 ${className ?? ""}`} {...props}>
-      {children}
+    <h2 id={headingId(text)} className={`scroll-mt-6 ${className ?? ""}`} {...props}>
+      {title && displaySubtitle ? (
+        <>
+          <span className="essay-heading-title" style={{ display: "block" }}>{title}</span>
+          <span
+            className="essay-heading-subtitle"
+            style={{ color: "#5e5650", display: "block", fontSize: "0.66em", fontWeight: 500, letterSpacing: "-0.01em", marginTop: "0.4rem" }}
+          >
+            {displaySubtitle}
+          </span>
+        </>
+      ) : children}
     </h2>
   );
 }
@@ -184,7 +203,7 @@ export default async function EssayPage({ params }: Props) {
         <div id="essay-content" className="prose-essay">
           <MDXRemote
             source={content}
-            components={{ img: EssayImage, pre: EssayCodeBlock, table: EssayTable, EssayVideo, LinkPreview, QuantizationCharts, Callout, Figure: EssayFigure, Summary: SectionSummary, TableNote, h2: EssayHeading }}
+            components={{ img: EssayImage, pre: EssayCodeBlock, table: EssayTable, EssayVideo, LinkPreview, QuantizationSizeChart, QuantizationPerplexityChart, QuantizationMmluChart, QuantizationGenerationChart, QuantizationTradeoffChart, QuantizationGptqAblationChart, SpecKSweepChart, SpecWorkloadChart, RecommendationList, RecommendationStart, RecommendationPath, Callout, Figure: EssayFigure, Summary: SectionSummary, TableNote, h2: EssayHeading }}
             options={{
               mdxOptions: {
                 remarkPlugins: [remarkGfm, remarkUnwrapImages],

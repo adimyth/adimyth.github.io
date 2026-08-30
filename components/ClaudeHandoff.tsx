@@ -110,7 +110,7 @@ export default function ClaudeHandoff() {
         </div>
         <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#4f4945]">“{selectedText}”</p>
         <label className="mt-3 block text-xs font-semibold text-[#4f4945]" htmlFor="selection-instruction">Your instruction</label>
-        <textarea id="selection-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} maxLength={4_000} placeholder="Tell it exactly what to do or not do." rows={3} className="mt-1 w-full resize-none rounded-xl border border-[#d9d4cc] bg-white px-3 py-2 text-sm leading-5 text-[#1f1b19] outline-none placeholder:text-[#948a82] focus:border-[#6b625c]" autoFocus />
+        <textarea id="selection-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} maxLength={4_000} placeholder="Tell it exactly what to do or not do." rows={3} className="mt-1 w-full resize-none rounded-xl border border-[#d9d4cc] bg-white px-3 py-2 text-sm leading-5 text-[#1f1b19] outline-none placeholder:text-[#948a82] focus:border-[#6b625c]" />
         {status === "error" && <p className="mt-2 text-xs leading-5 text-[#a13c32]">{error} Run the setup command in the README and refresh this page.</p>}
         <div className="mt-3 flex justify-end">
           <button type="button" onClick={sendToClaude} disabled={!instruction.trim() || status === "sending" || status === "sent"} className="inline-flex items-center gap-2 rounded-full bg-[#1f1b19] px-4 py-2 text-sm font-bold text-[#fffdf9] transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60">
