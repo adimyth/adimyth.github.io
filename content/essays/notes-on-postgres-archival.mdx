@@ -118,7 +118,7 @@ Autovacuum only runs `VACUUM` and `ANALYZE`.
 
 To actually return space to the operating system, you have to run `VACUUM FULL`. It physically removes dead tuples and rewrites the table, releasing the freed space back to the OS, so the table shrinks to its true size.
 
-![VACUUM vs VACUUM FULL](https://miro.medium.com/v2/resize:fit:720/format:webp/1*QP5qvXbQ6HfNrPFZzD6d0Q.jpeg)
+![VACUUM marks dead rows reusable in place, VACUUM FULL rewrites the table and returns the space](/diagrams/vacuum-vs-vacuum-full.svg)
 
 Note that `VACUUM FULL` takes an `ExclusiveLock`, just like the index creation earlier. That meant downtime, so we scheduled it for off-hours.
 

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 232" width="560" height="232" role="img" aria-labelledby="vac-title">
+  <title id="vac-title">VACUUM marks dead rows reusable in place; VACUUM FULL rewrites the table and returns space to the operating system</title>
+  <defs>
+    <style>
+      .live { fill: #2f7375; stroke: #24605f; stroke-width: 1; }
+      .dead { fill: #d9d4cc; stroke: #a39b90; stroke-width: 1; }
+      .reuse { fill: #f9f7f3; stroke: #a39b90; stroke-width: 1; stroke-dasharray: 3 2; }
+      .rowlabel { fill: #111111; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 700; text-anchor: end; dominant-baseline: middle; }
+      .colhead { fill: #8a8178; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-anchor: middle; }
+      .note { fill: #4f4945; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 10px; dominant-baseline: middle; }
+      .strong { fill: #111111; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 700; dominant-baseline: middle; }
+      .lock { fill: #b65c45; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; dominant-baseline: middle; }
+      .arrow { stroke: #a39b90; stroke-width: 1.25; fill: none; }
+      .brace { stroke: #b65c45; stroke-width: 1.25; fill: none; }
+      .legend { fill: #4f4945; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; dominant-baseline: middle; }
+    </style>
+    <marker id="vac-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#a39b90" />
+    </marker>
+  </defs>
+
+  <text class="colhead" x="191" y="20">TABLE ON DISK</text>
+  <text class="colhead" x="401" y="20">AFTER</text>
+
+  <text class="rowlabel" x="102" y="47">VACUUM</text>
+  <rect class="live" x="112" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="135" y="34" width="20" height="26" rx="2" />
+  <rect class="dead" x="158" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="181" y="34" width="20" height="26" rx="2" />
+  <rect class="dead" x="204" y="34" width="20" height="26" rx="2" />
+  <rect class="dead" x="227" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="250" y="34" width="20" height="26" rx="2" />
+  <line class="arrow" x1="288" y1="47" x2="312" y2="47" marker-end="url(#vac-arrow)" />
+  <rect class="live" x="322" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="345" y="34" width="20" height="26" rx="2" />
+  <rect class="reuse" x="368" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="391" y="34" width="20" height="26" rx="2" />
+  <rect class="reuse" x="414" y="34" width="20" height="26" rx="2" />
+  <rect class="reuse" x="437" y="34" width="20" height="26" rx="2" />
+  <rect class="live" x="460" y="34" width="20" height="26" rx="2" />
+  <text class="note" x="322" y="78">Dead rows marked reusable. The file is still <tspan class="strong">14 GB</tspan>.</text>
+
+  <text class="rowlabel" x="102" y="139">VACUUM FULL</text>
+  <rect class="live" x="112" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="135" y="126" width="20" height="26" rx="2" />
+  <rect class="dead" x="158" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="181" y="126" width="20" height="26" rx="2" />
+  <rect class="dead" x="204" y="126" width="20" height="26" rx="2" />
+  <rect class="dead" x="227" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="250" y="126" width="20" height="26" rx="2" />
+  <line class="arrow" x1="288" y1="139" x2="312" y2="139" marker-end="url(#vac-arrow)" />
+  <rect class="live" x="322" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="345" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="368" y="126" width="20" height="26" rx="2" />
+  <rect class="live" x="391" y="126" width="20" height="26" rx="2" />
+  <path class="brace" d="M411,126 L411,152" />
+  <path class="brace" d="M411,139 L480,139" />
+  <text class="lock" x="418" y="120">SPACE RETURNED</text>
+  <text class="note" x="322" y="170">Table rewritten to <tspan class="strong">1.1 GB</tspan>. Takes an <tspan class="lock">ExclusiveLock</tspan>.</text>
+
+  <rect class="live"  x="112" y="200" width="12" height="12" rx="2" /><text class="legend" x="130" y="207">live row</text>
+  <rect class="dead"  x="192" y="200" width="12" height="12" rx="2" /><text class="legend" x="210" y="207">dead row</text>
+  <rect class="reuse" x="278" y="200" width="12" height="12" rx="2" /><text class="legend" x="296" y="207">reusable space, still allocated</text>
+</svg>
