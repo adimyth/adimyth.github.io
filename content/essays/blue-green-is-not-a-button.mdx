@@ -29,8 +29,6 @@ RDS creates a full copy of your instance, the *green* environment, and keeps it 
 
 That shape is exactly right. Blue really does serve writes for the entire creation and sync window, which on a real fleet is hours, not minutes. The old approach, an in-place major version upgrade, takes the database down for that whole time. Blue/green removes that outage and it is worth using for that reason alone.
 
-What follows is everything between the shape and the reality.
-
 ## First, we read four release notes
 
 Before touching any infrastructure we had to answer whether our applications would survive on 17 at all. Four major versions is a lot of accumulated default changes, and most do not announce themselves. They just start behaving differently.
@@ -86,7 +84,7 @@ A warning. Not an error, not a refusal. The statement succeeds on blue, green ne
 ERROR: column "id" of relation "user_groups" already exists
 ```
 
-Which is how one service ended up doing this:
+One service ended up doing this:
 
 ```
 08:50:17 UTC STATEMENT:  ALTER TABLE user_groups ADD COLUMN id INTEGER
