@@ -2,14 +2,13 @@ import { profile } from "@/lib/data";
 
 export default function About() {
   return (
-    <section id="about" className="py-16 px-6 border-t border-[#d9d4cc]">
+    <section id="about" className="pt-8 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="grid md:grid-cols-2 gap-12 items-start">
           <div>
-            <h2 className="text-5xl md:text-6xl font-black tracking-tight leading-tight text-[#111111]">
-              Systems thinker.
-              <br />
-              AI builder.
+            <h2 className="text-3xl md:text-4xl font-semibold tracking-tight leading-tight text-[#111111]">
+              <span className="block">Systems thinker.</span>
+              <span className="block">AI builder.</span>
             </h2>
           </div>
 
@@ -21,7 +20,7 @@ export default function About() {
               <div>
                 <p
                   style={{ fontFamily: "var(--font-lora)" }}
-                  className="text-5xl font-bold text-[#111111]"
+                  className="text-4xl font-semibold text-[#111111]"
                 >
                   9+
                 </p>
@@ -32,7 +31,7 @@ export default function About() {
               <div>
                 <p
                   style={{ fontFamily: "var(--font-lora)" }}
-                  className="text-5xl font-bold text-[#111111]"
+                  className="text-4xl font-semibold text-[#111111]"
                 >
                   3
                 </p>

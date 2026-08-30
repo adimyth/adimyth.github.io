@@ -3,9 +3,9 @@ import CompanyLogo from "@/components/CompanyLogo";
 
 export default function Experience() {
   return (
-    <section id="experience" className="py-16 px-6 border-t border-[#d9d4cc]">
+    <section id="experience" className="py-14 px-6">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-5xl md:text-6xl font-black tracking-tight text-[#111111] mb-12">
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#111111] mb-8">
           Experience
         </h2>
 
@@ -36,9 +36,9 @@ export default function Experience() {
                     )}
                     <p className="text-sm text-[#4a4542] mt-0.5">{job.location}</p>
                   </div>
-                  <span className="inline-block shrink-0 text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full self-start">
+                  <p className="shrink-0 self-start text-sm font-medium text-[#333333]">
                     {job.period}
-                  </span>
+                  </p>
                 </div>
 
                 {job.roles && job.roles.length > 1 ? (

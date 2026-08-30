@@ -7,12 +7,12 @@ export default function Hero() {
   return (
     <section
       id="hero"
-      className="min-h-screen flex flex-col justify-center px-6 max-w-4xl mx-auto"
+      className="py-20 md:py-24 px-6 max-w-4xl mx-auto"
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-10">
         {/* Text content */}
         <div className="flex-1 order-2 md:order-1">
-          <div className="mb-3 inline-flex items-center gap-2 w-fit px-4 py-2 rounded-full border-2 border-[#6b6460] text-sm text-[#4a4542]">
+          <div className="mb-4 flex items-center gap-2 text-sm font-medium text-[#4a4542]">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />

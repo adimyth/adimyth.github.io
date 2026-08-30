@@ -2,39 +2,26 @@ import { skills } from "@/lib/data";
 
 export default function Skills() {
   return (
-    <section id="skills" className="py-16 px-6 border-t border-[#d9d4cc]">
+    <section id="skills" className="py-14 px-6">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-5xl md:text-6xl font-black tracking-tight text-[#111111] mb-12">
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#111111] mb-8">
           Skills
         </h2>
 
         <div className="divide-y divide-[#d9d4cc]">
-          {skills.map((group, idx) => (
+          {skills.map((group) => (
             <div
               key={group.category}
               className="flex flex-col sm:flex-row sm:items-start gap-4 py-5"
             >
               <p
-                className={`text-xs font-bold uppercase tracking-widest sm:w-44 shrink-0 pt-1 ${
-                  idx === 0 ? "text-[#111111]" : "text-[#4a4542]"
-                }`}
+                className="text-xs font-semibold uppercase tracking-widest text-[#4a4542] sm:w-44 shrink-0 pt-1"
               >
                 {group.category}
               </p>
-              <div className="flex flex-wrap gap-2">
-                {group.items.map((item) => (
-                  <span
-                    key={item}
-                    className={`text-sm font-medium px-4 py-1.5 rounded-full border ${
-                      idx === 0
-                        ? "bg-[#111111] text-[#f4f1ea] border-[#111111]"
-                        : "bg-white border-[#d9d4cc] text-[#333333]"
-                    }`}
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
+              <p className="text-sm leading-7 text-[#333333]">
+                {group.items.join(" · ")}
+              </p>
             </div>
           ))}
         </div>

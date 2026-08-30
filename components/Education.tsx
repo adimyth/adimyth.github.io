@@ -2,13 +2,13 @@ import { education } from "@/lib/data";
 
 export default function Education() {
   return (
-    <section id="education" className="py-16 px-6 border-t border-[#d9d4cc]">
+    <section id="education" className="py-14 px-6">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-5xl md:text-6xl font-black tracking-tight text-[#111111] mb-12">
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#111111] mb-8">
           Education
         </h2>
 
-        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 py-7 border-y border-[#d9d4cc]">
+        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3">
           <div className="min-w-0">
             <p className="text-lg font-bold text-[#111111]">
               {education.institution}
@@ -18,14 +18,11 @@ export default function Education() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full">
-              {education.period}
-            </span>
-            <span className="text-xs font-semibold text-[#333333] bg-[#e8e3d9] border border-[#d9d4cc] px-3 py-1.5 rounded-full">
-              {education.cgpa}
-            </span>
-          </div>
+          <p className="shrink-0 text-sm font-medium text-[#333333] sm:text-right">
+            {education.period}
+            <span aria-hidden="true" className="text-[#8a8178]"> · </span>
+            {education.cgpa}
+          </p>
         </div>
       </div>
     </section>

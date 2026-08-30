@@ -3,17 +3,13 @@ import { Download } from "lucide-react";
 
 export default function Resume() {
   return (
-    <section id="resume" className="py-24 px-6 border-t border-[#d9d4cc]">
+    <section id="resume" className="py-16 px-6">
       <div className="max-w-4xl mx-auto">
-        <p className="text-xs font-bold text-[#4a4542] uppercase tracking-widest mb-4">
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#111111] mb-2">
           Resume
-        </p>
-        <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[#111111] leading-tight mb-4">
-          Pick your version.
         </h2>
-        <p className="text-lg text-[#333333] mb-12 leading-relaxed">
-          Same person, two lenses. Choose the resume that matches the role you
-          are hiring for.
+        <p className="text-base text-[#4a4542] mb-8 leading-relaxed">
+          Pick the version that best fits the role.
         </p>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -23,7 +19,7 @@ export default function Resume() {
               className="flex flex-col gap-5 rounded-2xl border border-[#d9d4cc] hover:border-[#6b6460] bg-[#faf8f4] p-8 transition-colors"
             >
               <div className="flex-1">
-                <h3 className="text-2xl font-black text-[#111111] mb-3">
+                <h3 className="text-xl font-semibold text-[#111111] mb-3">
                   {resume.role}
                 </h3>
                 <p className="text-sm text-[#333333] leading-relaxed">
