@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Lora, Fira_Code, Source_Serif_4 } from "next/font/google";
 import Script from "next/script";
-import { SITE_URL } from "@/lib/data";
+import { SITE_URL, profile } from "@/lib/data";
 import PersonJsonLd from "@/components/PersonJsonLd";
+import Footer from "@/components/Footer";
 import "./globals.css";
 
 const inter = Inter({
@@ -33,14 +34,14 @@ const firaCode = Fira_Code({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Aditya Mishra · Principal Engineer & AI Engineer",
+  title: `${profile.name} · ${profile.title}`,
   description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
   icons: {
     icon: "/favicon.svg",
     apple: "/apple-icon",
   },
   openGraph: {
-    title: "Aditya Mishra · Principal Engineer & AI Engineer",
+    title: `${profile.name} · ${profile.title}`,
     description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
     url: SITE_URL,
     siteName: "Aditya Mishra",
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Aditya Mishra · Principal Engineer & AI Engineer",
+    title: `${profile.name} · ${profile.title}`,
     description: "Principal Engineer building foundational backend and platform systems, LLM applications, voice agents, and multi-agent systems.",
   },
 };
@@ -66,6 +67,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-background text-foreground">
         {children}
+        <Footer />
         <PersonJsonLd />
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-0E0FNTMPJX"

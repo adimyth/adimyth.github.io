@@ -23,6 +23,10 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
+  --font-weight-medium: 550;
+  --font-weight-semibold: 660;
+  --font-weight-bold: 770;
+  --font-weight-extrabold: 880;
 }
 
 :root {
@@ -36,7 +40,7 @@
   --secondary-foreground: #111111;
   --muted: #ede9e0;
   --muted-foreground: #4f4945;
-  --border: #d9d4cc;
+  --border: #e4ded6;
   --input: #d9d4cc;
   --ring: #111111;
   --radius: 0.75rem;
@@ -46,12 +50,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-size: 17px;
+  }
   body {
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-inter), -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
-    font-size: 17px;
     line-height: 1.65;
   }
 }
@@ -70,7 +76,7 @@
 .prose-essay h2 {
   font-family: var(--font-inter), sans-serif;
   font-size: clamp(1.4rem, 1.3rem + 0.42vw, 1.72rem);
-  font-weight: 750;
+  font-weight: 825;
   letter-spacing: -0.035em;
   color: #111111;
   margin-top: 4.5rem;
@@ -81,7 +87,7 @@
 .prose-essay h3 {
   font-family: var(--font-inter), sans-serif;
   font-size: 1.1875rem;
-  font-weight: 700;
+  font-weight: 770;
   letter-spacing: -0.01em;
   color: #111111;
   margin-top: 2.75rem;
@@ -107,7 +113,7 @@
 }
 
 .prose-essay strong {
-  font-weight: 600;
+  font-weight: 660;
   color: #111111;
 }
 
@@ -120,7 +126,7 @@
   margin-top: 0.2rem;
   color: #5e5650;
   font-size: 0.78em;
-  font-weight: 500;
+  font-weight: 550;
   letter-spacing: -0.01em;
 }
 
@@ -171,7 +177,7 @@
   margin-bottom: 0.45rem;
   color: #6b625c;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 660;
 }
 
 .prose-essay .link-preview-title,
@@ -182,7 +188,7 @@
 .prose-essay .link-preview-title {
   margin-bottom: 0.3rem;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 770;
 }
 
 .prose-essay .link-preview-description {
@@ -245,7 +251,7 @@
   color: #5d5147;
   font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
-  font-weight: 750;
+  font-weight: 825;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -315,7 +321,7 @@
   color: #2f2b29;
   font-family: var(--font-fira-code), "Courier New", monospace;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 660;
   margin: 0;
 }
 
@@ -325,7 +331,7 @@
   color: #6b625c;
   font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: 715;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -386,7 +392,7 @@
   color: #bfb8af;
   font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: 715;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -432,7 +438,7 @@
 .prose-essay h4 {
   font-family: var(--font-inter), sans-serif;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 770;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #4f4945;
@@ -504,7 +510,7 @@
 .prose-essay th {
   text-align: left;
   padding: 0.6rem 0.75rem;
-  font-weight: 700;
+  font-weight: 770;
   color: #111111;
   font-size: 0.78rem;
   letter-spacing: 0.01em;
@@ -635,7 +641,7 @@
 .quant-chart figcaption span {
   color: #111111;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 770;
 }
 
 .quant-chart figcaption small {
@@ -717,7 +723,7 @@
 
 .quant-reference strong {
   color: #2f2b29;
-  font-weight: 700;
+  font-weight: 770;
 }
 
 .quant-reference span {
@@ -755,7 +761,7 @@
 
 .quant-axis-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 660;
 }
 
 .quant-point {
@@ -765,7 +771,7 @@
 
 .quant-point-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 660;
 }
 
 @keyframes quant-bar-enter {

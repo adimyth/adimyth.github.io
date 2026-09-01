@@ -1,59 +1,58 @@
 import Image from "next/image";
-import Link from "next/link";
 import { profile } from "@/lib/data";
-import { BookOpen, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
+
+function SummaryParagraph({ text }: { text: string }) {
+  const { label, href } = profile.summaryLink;
+  const index = text.indexOf(label);
+  if (index === -1) return <>{text}</>;
+
+  return (
+    <>
+      {text.slice(0, index)}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-[#111111] underline underline-offset-4 decoration-[#c4bbb2] hover:decoration-[#111111] transition-colors"
+      >
+        {label}
+      </a>
+      {text.slice(index + label.length)}
+    </>
+  );
+}
 
 export default function Hero() {
   return (
     <section
       id="hero"
-      className="py-20 md:py-24 px-6 max-w-4xl mx-auto"
+      className="pt-20 md:pt-24 pb-8 px-6 max-w-4xl mx-auto"
     >
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-10">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-10">
         {/* Text content */}
         <div className="flex-1 order-2 md:order-1">
-          <div className="mb-4 flex items-center gap-2 text-sm font-medium text-[#4a4542]">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            Open to new opportunities
-          </div>
-
           <h1
             style={{ fontFamily: "var(--font-lora)" }}
-            className="text-6xl md:text-7xl font-bold tracking-tight mb-5 text-[#111111] leading-tight"
+            className="text-6xl font-bold tracking-tight mb-5 text-[#111111] leading-tight"
           >
             {profile.name}
           </h1>
 
-          <p className="text-xl md:text-2xl font-semibold text-[#333333] mb-6">
+          <p className="text-base font-semibold text-[#333333] mb-6">
             {profile.title}
           </p>
 
-          <p className="max-w-xl text-lg text-[#333333] leading-relaxed mb-10">
-            {profile.tagline}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 mb-12">
-            <a
-              href={`mailto:${profile.email}`}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#111111] text-[#f4f1ea] font-semibold hover:bg-[#333333] transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Get in touch
-            </a>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 border-[#111111] text-[#111111] font-semibold hover:bg-[#ede9e0] transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              Read essays
-            </Link>
+          <div className="space-y-4 text-base font-medium leading-7 text-[#333333] mb-8">
+            {profile.summary.map((paragraph) => (
+              <p key={paragraph}>
+                <SummaryParagraph text={paragraph} />
+              </p>
+            ))}
           </div>
 
-          <div className="flex items-center gap-5 pb-10 md:pb-0">
+          <div className="flex items-center gap-5">
             <a
               href={profile.github}
               target="_blank"

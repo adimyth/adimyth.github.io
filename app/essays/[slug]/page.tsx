@@ -22,6 +22,7 @@ import SectionSummary from "@/components/SectionSummary";
 import TableNote from "@/components/TableNote";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
 import { profile } from "@/lib/data";
+import InlineSep from "@/components/InlineSep";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -152,13 +153,13 @@ export default async function EssayPage({ params }: Props) {
           All essays
         </Link>
 
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#4a4542] mb-5">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#4a4542] mb-5">
           <span>{formatEssayDate(meta.date)}</span>
-          <span>·</span>
+          <InlineSep />
           <span>{meta.readTime}</span>
           {meta.publication && (
             <>
-              <span>·</span>
+              <InlineSep />
               <span>{meta.publication}</span>
             </>
           )}
@@ -198,7 +199,7 @@ export default async function EssayPage({ params }: Props) {
           </a>
         )}
 
-        <hr className="border-[#d9d4cc] mb-10" />
+        <hr className="border-[#e4ded6] mb-10" />
 
         <div id="essay-content" className="prose-essay">
           <MDXRemote
@@ -215,7 +216,7 @@ export default async function EssayPage({ params }: Props) {
         {process.env.NODE_ENV !== "production" && <ClaudeHandoff />}
 
         {meta.originalUrl && (
-          <div className="mt-16 pt-8 border-t border-[#d9d4cc]">
+          <div className="mt-16 pt-8 border-t border-[#e4ded6]">
             <p className="text-sm text-[#4f4945] mb-3">
               This article was originally published on {meta.publication ?? "Medium"}.
             </p>

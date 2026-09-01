@@ -1,10 +1,11 @@
 import { ImageResponse } from "next/og";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { profile } from "@/lib/data";
 import { loadInterFonts } from "@/lib/og";
 
 export const dynamic = "force-static";
-export const alt = "Aditya Mishra - Principal Engineer & AI Engineer";
+export const alt = `Aditya Mishra - ${profile.title}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -81,7 +82,7 @@ export default async function Image() {
               marginBottom: 24,
             }}
           >
-            Principal Engineer &amp; AI Engineer
+            {profile.title}
           </div>
 
           <div

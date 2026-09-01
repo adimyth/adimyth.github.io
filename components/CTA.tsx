@@ -4,21 +4,18 @@ import { GitHubIcon, LinkedInIcon, XIcon } from "@/components/icons";
 
 export default function CTA() {
   return (
-    <section className="py-14 px-6">
+    <section className="pt-8 pb-16 px-6">
       <div className="max-w-4xl mx-auto">
-        <p className="text-xs font-semibold text-[#4a4542] uppercase tracking-widest mb-3">
-          Get in touch
-        </p>
-        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#111111] leading-tight mb-4">
+        <h2 className="text-3xl font-semibold tracking-tight text-[#111111] leading-tight mb-4">
           Let&apos;s work together.
         </h2>
-        <p className="text-base text-[#333333] mb-7 max-w-lg leading-relaxed">
+        <p className="text-base text-[#333333] mb-7 max-w-lg leading-7">
           I&apos;m open to full-time roles, contracts, and thoughtful conversations.
         </p>
 
         <a
           href={`mailto:${profile.email}`}
-          className="inline-flex items-center gap-3 text-xl font-semibold text-[#111111] hover:text-[#333333] transition-colors"
+          className="inline-flex items-center gap-3 text-base font-semibold text-[#111111] hover:text-[#333333] transition-colors"
         >
           <Mail className="w-5 h-5" />
           {profile.email}

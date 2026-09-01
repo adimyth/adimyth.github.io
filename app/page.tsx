@@ -1,10 +1,10 @@
 import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
 import IdentityStrip from "@/components/IdentityStrip";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { getAllEssays, formatEssayDate } from "@/lib/essays";
 import { profile } from "@/lib/data";
+import InlineSep from "@/components/InlineSep";
 
 export const metadata = {
   title: `${profile.name}`,
@@ -27,12 +27,12 @@ export default function Home() {
               <Link
                 key={essay.slug}
                 href={`/essays/${essay.slug}`}
-                className="group flex items-start justify-between gap-6 py-6 border-b border-[#d9d4cc] first:border-t hover:border-[#6b6460] transition-colors"
+                className="group flex items-start justify-between gap-6 py-6 border-b border-[#e4ded6] first:border-t hover:border-[#cfc8be] transition-colors"
               >
                 <div className="min-w-0">
                   <h2
                     style={{ fontFamily: "var(--font-lora)" }}
-                    className="text-xl font-semibold text-[#111111] group-hover:text-[#2f2b29] transition-colors leading-snug mb-2"
+                    className="text-base font-medium text-[#111111] group-hover:text-[#2f2b29] transition-colors leading-snug mb-2"
                   >
                     {essay.title}
                     {essay.draft && (
@@ -47,9 +47,9 @@ export default function Home() {
                   <p className="text-sm text-[#4f4945] leading-relaxed mb-3">
                     {essay.description}
                   </p>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#4a4542]">
+                  <div className="flex items-center gap-2 text-sm font-medium text-[#4a4542]">
                     <span>{formatEssayDate(essay.date)}</span>
-                    <span>·</span>
+                    <InlineSep />
                     <span>{essay.readTime}</span>
                   </div>
                 </div>
@@ -59,7 +59,6 @@ export default function Home() {
           </div>
         </div>
       </main>
-      <Footer />
     </>
   );
 }

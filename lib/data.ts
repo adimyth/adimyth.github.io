@@ -8,8 +8,16 @@ export const upcomingEvent = {
 
 export const profile = {
   name: "Aditya Mishra",
-  title: "Principal Engineer & AI Engineer",
-  tagline: "I’m a Principal Engineer with 9+ years of experience building foundational backend and platform systems, and the production AI applications that depend on them. My current work focuses on LLM applications, voice agents, and multi-agent systems. I write about the engineering decisions that make those systems reliable in production.",
+  title: "engineering, applied AI, and systems",
+  summary: [
+    "I’m a software engineer and engineering leader focused on building production AI systems and the infrastructure that makes them scale. Currently, I’m a Principal Engineer at Sharpsell.ai, working at the intersection of AI and systems engineering.",
+    "My experience spans both the backend and platform foundations that systems are built on, and the production AI applications that run on top of them. My current work includes AI applications, voice agents, multi-agent systems, and core platform infrastructure.",
+    "I write about the engineering behind these systems: how they work, the decisions and trade-offs involved in building them, and what it takes to make them scalable and reliable in production. I also write about technical ideas I want to understand more deeply, often by implementing and testing them myself.",
+  ],
+  summaryLink: {
+    label: "Sharpsell.ai",
+    href: "https://www.sharpsell.ai/",
+  },
   email: "mishraaditya6991@gmail.com",
   phone: "+91 9029080380",
   github: "https://github.com/adimyth",
@@ -17,16 +25,49 @@ export const profile = {
   twitter: "https://x.com/adi_myth",
 };
 
+export const recentProjects = [
+  {
+    name: "LLM Inference Experiments",
+    description:
+      "Runnable scripts behind the LLM Inference essays on adimyth.in",
+    url: "https://github.com/adimyth/llm-inference-experiments",
+  },
+  {
+    name: "Realtime Streaming Systems",
+    description: "Realtime Stream Processing using Apache Kafka & Apache Flink",
+    url: "https://github.com/adimyth/realtime-streaming-systems",
+  },
+  {
+    name: "Async Job Processing",
+    description:
+      "A job processing system with priority queues, scheduling, retries, and persistent job tracking using FastAPI, Redis Queue, and PostgreSQL.",
+    url: "https://github.com/adimyth/async-job-processing",
+  },
+  {
+    name: "Self-hosted Video Recorder",
+    description:
+      "A self-hosted video recording pipeline for Daily rooms with participant capture, layout composition, and MP4 encoding.",
+    url: "https://github.com/adimyth/self-hosted-video-recorder",
+  },
+  {
+    name: "AI Contract Review",
+    description:
+      "AI-powered contract pre-screening - extracts clauses, flags deviations, suggests redlines, and recommends an action in seconds.",
+    url: "https://github.com/adimyth/ai-contract-review",
+  },
+];
+
 // Google Drive export: make sure each doc is set to "Anyone with the link can view"
 export const resumes = [
   {
     role: "Principal Engineer",
     description:
-      "Focused on distributed systems, platform engineering, real-time data infrastructure, and service design. Best for engineering leadership and architecture roles.",
+      "Experience building production AI applications, backend and platform systems, distributed infrastructure, and real-time systems.",
     url: "https://docs.google.com/document/d/1jxlTpeo3LGoKuRN1S5tG99trEU-inq6lN1YYV_AqFSI/export?format=pdf",
   },
   {
     role: "AI Engineer",
+    hidden: true,
     description:
       "Focused on LLM applications, agentic systems, RAG pipelines, voice AI, and MLOps. Best for AI-first product companies and research-adjacent roles.",
     url: "https://docs.google.com/document/d/1O1dJjBs6U4unnZY_bk4CMisWBNK58X-gs0CX2zdRhxk/export?format=pdf",
@@ -41,16 +82,11 @@ export const skills = [
       "Data Engineering",
       "Distributed Systems",
       "System Design",
-      "DevOps",
     ],
   },
   {
     category: "Languages",
     items: ["Python", "Go"],
-  },
-  {
-    category: "API Frameworks",
-    items: ["FastAPI", "Gin"],
   },
   {
     category: "AI & ML",
@@ -60,7 +96,6 @@ export const skills = [
       "Deep Agents",
       "LangSmith",
       "DeepEval",
-      "Scikit-learn",
       "TensorFlow",
     ],
   },
@@ -70,14 +105,14 @@ export const skills = [
   },
   {
     category: "Cloud & Infrastructure",
-    items: ["AWS", "GCP", "Modal", "Docker", "Kubernetes", "Serverless"],
+    items: ["AWS", "GCP", "Modal", "Docker", "Kubernetes", "Terraform", "Serverless Framework"],
   },
   {
     category: "Data & Streaming",
     items: ["Apache Kafka", "Apache Flink", "Celery", "Airflow"],
   },
   {
-    category: "Practices",
+    category: "Production Engineering",
     items: ["MLOps", "Monitoring & Observability"],
   },
 ];
@@ -183,7 +218,7 @@ export const experience: ExperienceEntry[] = [
         name: "Underwriting Automation Module",
         description:
           "Tools and dashboards that let client teams control the automation flow and read the underwriting results themselves.",
-        stack: ["Python", "Scikit-learn", "Dashboards", "ML"],
+        stack: ["Python", "Dashboards", "ML"],
       },
     ],
   },
@@ -204,15 +239,8 @@ export const experience: ExperienceEntry[] = [
         name: "ML Across Domains",
         description:
           "Applied ML for multiple clients, spanning computer vision, OCR, and NLP problems.",
-        stack: ["Python", "Mask R-CNN", "Tesseract", "NLP", "Scikit-learn"],
+        stack: ["Python", "Mask R-CNN", "Tesseract", "NLP"],
       },
     ],
   },
 ];
-
-export const education = {
-  institution: "University of Mumbai",
-  degree: "B.E in Computer Science",
-  period: "Aug 2014 to Jun 2018",
-  cgpa: "8.8 CGPA",
-};
