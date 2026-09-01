@@ -103,17 +103,17 @@ export default function ClaudeHandoff() {
       <div className="pointer-events-none fixed inset-0 z-40" aria-hidden="true">
         {selectionRects.map((rect, index) => <span key={`${rect.left}-${rect.top}-${index}`} className="fixed rounded-sm bg-[#e8cb77]/65" style={rect} />)}
       </div>
-      <aside className="fixed bottom-5 right-5 z-50 w-[min(25rem,calc(100vw-2.5rem))] rounded-2xl border border-[#c9c0b5] bg-[#fffdf9] p-4 shadow-[0_16px_48px_rgb(54_48_42/18%)]" aria-label="Send selected text">
+      <aside className="fixed bottom-5 right-5 z-50 w-[min(25rem,calc(100vw-2.5rem))] rounded-2xl border border-line-strong bg-surface p-4 shadow-[0_16px_48px_rgb(54_48_42/18%)]" aria-label="Send selected text">
         <div className="flex items-start justify-between gap-4">
-          <div className="text-sm font-bold text-[#1f1b19]">Selected text</div>
-          <button type="button" onClick={clearSelectedText} className="rounded p-1 text-[#6b625c] hover:bg-[#ede9e0] hover:text-[#111111]" aria-label="Close"><X className="size-4" /></button>
+          <div className="text-sm font-bold text-ink">Selected text</div>
+          <button type="button" onClick={clearSelectedText} className="rounded p-1 text-faint hover:bg-muted hover:text-ink" aria-label="Close"><X className="size-4" /></button>
         </div>
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#4f4945]">“{selectedText}”</p>
-        <label className="mt-3 block text-xs font-semibold text-[#4f4945]" htmlFor="selection-instruction">Your instruction</label>
-        <textarea id="selection-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} maxLength={4_000} placeholder="Tell it exactly what to do or not do." rows={3} className="mt-1 w-full resize-none rounded-xl border border-[#d9d4cc] bg-white px-3 py-2 text-sm leading-5 text-[#1f1b19] outline-none placeholder:text-[#948a82] focus:border-[#6b625c]" />
+        <p className="mt-2 line-clamp-3 text-sm leading-6 text-quiet">“{selectedText}”</p>
+        <label className="mt-3 block text-xs font-semibold text-quiet" htmlFor="selection-instruction">Your instruction</label>
+        <textarea id="selection-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} maxLength={4_000} placeholder="Tell it exactly what to do or not do." rows={3} className="mt-1 w-full resize-none rounded-xl border border-line-strong bg-paper px-3 py-2 text-sm leading-5 text-ink outline-none placeholder:text-faint focus:border-line-hover" />
         {status === "error" && <p className="mt-2 text-xs leading-5 text-[#a13c32]">{error} Run the setup command in the README and refresh this page.</p>}
         <div className="mt-3 flex justify-end">
-          <button type="button" onClick={sendToClaude} disabled={!instruction.trim() || status === "sending" || status === "sent"} className="inline-flex items-center gap-2 rounded-full bg-[#1f1b19] px-4 py-2 text-sm font-bold text-[#fffdf9] transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={sendToClaude} disabled={!instruction.trim() || status === "sending" || status === "sent"} className="inline-flex items-center gap-2 rounded-full bg-inverse px-4 py-2 text-sm font-bold text-inverse-fg transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60">
             {status === "sent" ? <><Check className="size-4" /> Sent</> : <><Send className="size-4" /> {status === "sending" ? "Sending" : "Send"}</>}
           </button>
         </div>

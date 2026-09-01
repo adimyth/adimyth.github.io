@@ -23,6 +23,7 @@ import TableNote from "@/components/TableNote";
 import ArticleJsonLd from "@/components/ArticleJsonLd";
 import { profile } from "@/lib/data";
 import InlineSep from "@/components/InlineSep";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -66,7 +67,7 @@ function EssayHeading({
           <span className="essay-heading-title" style={{ display: "block" }}>{title}</span>
           <span
             className="essay-heading-subtitle"
-            style={{ color: "#5e5650", display: "block", fontSize: "0.66em", fontWeight: 500, letterSpacing: "-0.01em", marginTop: "0.4rem" }}
+            style={{ color: "var(--faint)", display: "block", fontSize: "0.66em", fontWeight: 500, letterSpacing: "-0.01em", marginTop: "0.4rem" }}
           >
             {displaySubtitle}
           </span>
@@ -136,7 +137,7 @@ export default async function EssayPage({ params }: Props) {
   const chapters = getChapters(content);
 
   return (
-    <main className="min-h-screen bg-[#f4f1ea] px-6 py-16">
+    <main className="min-h-screen bg-paper px-6 py-16">
       <ArticleJsonLd
         slug={meta.slug}
         title={meta.title}
@@ -145,15 +146,18 @@ export default async function EssayPage({ params }: Props) {
       />
       <div className="relative mx-auto max-w-[42.5rem]">
         <article className="min-w-0">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f4945] hover:text-[#111111] transition-colors mb-12"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          All essays
-        </Link>
+        <div className="mb-12 flex items-center justify-between gap-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-quiet hover:text-ink transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            All essays
+          </Link>
+          <ThemeToggle />
+        </div>
 
-        <div className="flex items-center gap-2 text-sm font-medium text-[#4a4542] mb-5">
+        <div className="flex items-center gap-2 text-sm font-medium text-quiet mb-5">
           <span>{formatEssayDate(meta.date)}</span>
           <InlineSep />
           <span>{meta.readTime}</span>
@@ -165,19 +169,19 @@ export default async function EssayPage({ params }: Props) {
           )}
         </div>
 
-        <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.035em] text-[#111111] leading-[1.08] mb-10">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.035em] text-ink leading-[1.08] mb-10">
           {meta.title}
         </h1>
 
         {chapters.length > 0 && (
-          <nav aria-label="Essay chapters" className="mb-10 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] px-5 py-4 min-[1600px]:hidden">
-            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
+          <nav aria-label="Essay chapters" className="mb-10 rounded-xl border border-line-strong bg-surface px-5 py-4 min-[1600px]:hidden">
+            <p className="text-xs font-bold tracking-[0.12em] uppercase text-quiet">Chapters</p>
             <ol className="mt-4 grid gap-y-3 text-sm">
               {chapters.map((chapter) => (
                 <li key={chapter.id}>
                   <a
                     href={`#${chapter.id}`}
-                    className="text-[#2f2b29] underline decoration-[#b9b1a6] underline-offset-4 transition-colors hover:text-[#111111]"
+                    className="text-ink-soft underline decoration-line-hover underline-offset-4 transition-colors hover:text-ink"
                   >
                     {chapter.title}
                   </a>
@@ -192,14 +196,14 @@ export default async function EssayPage({ params }: Props) {
             href={meta.originalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f4945] hover:text-[#111111] border border-[#d9d4cc] hover:border-[#a39b90] rounded-full px-4 py-2 transition-colors mb-10"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-quiet hover:text-ink border border-line-strong hover:border-line-hover rounded-full px-4 py-2 transition-colors mb-10"
           >
             Originally published on {meta.publication ?? "Medium"}
             <ArrowUpRight className="w-3.5 h-3.5" />
           </a>
         )}
 
-        <hr className="border-[#e4ded6] mb-10" />
+        <hr className="border-line mb-10" />
 
         <div id="essay-content" className="prose-essay">
           <MDXRemote
@@ -216,15 +220,15 @@ export default async function EssayPage({ params }: Props) {
         {process.env.NODE_ENV !== "production" && <ClaudeHandoff />}
 
         {meta.originalUrl && (
-          <div className="mt-16 pt-8 border-t border-[#e4ded6]">
-            <p className="text-sm text-[#4f4945] mb-3">
+          <div className="mt-16 pt-8 border-t border-line">
+            <p className="text-sm text-quiet mb-3">
               This article was originally published on {meta.publication ?? "Medium"}.
             </p>
             <a
               href={meta.originalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#111111] hover:text-[#2f2b29] transition-colors"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-ink hover:text-ink-soft transition-colors"
             >
               Read on {meta.publication ?? "Medium"}
               <ArrowUpRight className="w-4 h-4" />
@@ -235,18 +239,18 @@ export default async function EssayPage({ params }: Props) {
 
         {chapters.length > 0 && (
           <aside className="fixed right-8 top-8 z-20 hidden min-[1600px]:block">
-            <details open className="w-11 rounded-xl border border-[#d9d4cc] bg-[#fffdf9] shadow-sm open:w-72">
-              <summary className="flex size-11 cursor-pointer list-none items-center justify-center text-[#4f4945] [&::-webkit-details-marker]:hidden" aria-label="Show chapters">
+            <details open className="w-11 rounded-xl border border-line-strong bg-surface shadow-sm open:w-72">
+              <summary className="flex size-11 cursor-pointer list-none items-center justify-center text-quiet [&::-webkit-details-marker]:hidden" aria-label="Show chapters">
                 <Menu className="size-5" />
               </summary>
-              <nav aria-label="Essay chapters" className="border-t border-[#e4ded6] px-4 py-4">
-                <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4f4945]">Chapters</p>
+              <nav aria-label="Essay chapters" className="border-t border-line px-4 py-4">
+                <p className="text-xs font-bold tracking-[0.12em] uppercase text-quiet">Chapters</p>
                 <ol className="mt-4 grid gap-y-2 text-sm leading-6">
                   {chapters.map((chapter) => (
                     <li key={chapter.id}>
                       <a
                         href={`#${chapter.id}`}
-                        className="text-[#4f4945] transition-colors hover:text-[#111111]"
+                        className="text-quiet transition-colors hover:text-ink"
                       >
                         {chapter.title}
                       </a>

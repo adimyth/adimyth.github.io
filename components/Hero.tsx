@@ -15,7 +15,7 @@ function SummaryParagraph({ text }: { text: string }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-[#111111] underline underline-offset-4 decoration-[#c4bbb2] hover:decoration-[#111111] transition-colors"
+        className="font-medium text-ink underline underline-offset-4 decoration-line-hover hover:decoration-ink transition-colors"
       >
         {label}
       </a>
@@ -35,16 +35,16 @@ export default function Hero() {
         <div className="flex-1 order-2 md:order-1">
           <h1
             style={{ fontFamily: "var(--font-lora)" }}
-            className="text-6xl font-bold tracking-tight mb-5 text-[#111111] leading-tight"
+            className="text-6xl font-bold tracking-tight mb-5 text-ink leading-tight"
           >
             {profile.name}
           </h1>
 
-          <p className="text-base font-semibold text-[#333333] mb-6">
+          <p className="text-base font-semibold text-ink-soft mb-6">
             {profile.title}
           </p>
 
-          <div className="space-y-4 text-base font-medium leading-7 text-[#333333] mb-8">
+          <div className="space-y-4 text-base font-medium leading-7 text-ink-soft mb-8">
             {profile.summary.map((paragraph) => (
               <p key={paragraph}>
                 <SummaryParagraph text={paragraph} />
@@ -57,7 +57,7 @@ export default function Hero() {
               href={profile.github}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#4a4542] hover:text-[#111111] transition-colors"
+              className="text-quiet hover:text-ink transition-colors"
               aria-label="GitHub"
             >
               <GitHubIcon className="w-6 h-6" />
@@ -66,7 +66,7 @@ export default function Hero() {
               href={profile.linkedin}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#4a4542] hover:text-[#111111] transition-colors"
+              className="text-quiet hover:text-ink transition-colors"
               aria-label="LinkedIn"
             >
               <LinkedInIcon className="w-6 h-6" />
@@ -75,14 +75,14 @@ export default function Hero() {
               href={profile.twitter}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#4a4542] hover:text-[#111111] transition-colors"
+              className="text-quiet hover:text-ink transition-colors"
               aria-label="X"
             >
               <XIcon className="w-6 h-6" />
             </a>
             <a
               href={`mailto:${profile.email}`}
-              className="text-[#4a4542] hover:text-[#111111] transition-colors"
+              className="text-quiet hover:text-ink transition-colors"
               aria-label="Email"
             >
               <Mail className="w-6 h-6" />
@@ -92,7 +92,7 @@ export default function Hero() {
 
         {/* Profile photo */}
         <div className="flex-shrink-0 order-1 md:order-2 flex justify-start md:justify-end">
-          <div className="relative w-28 h-28 md:w-72 md:h-72 rounded-2xl overflow-hidden border-2 border-[#d9d4cc]">
+          <div className="relative w-28 h-28 md:w-72 md:h-72 rounded-2xl overflow-hidden border-2 border-line-strong">
             <Image
               src="/aditya.png"
               alt={profile.name}

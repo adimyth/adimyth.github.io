@@ -6,16 +6,16 @@ export default function CTA() {
   return (
     <section className="pt-8 pb-16 px-6">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-3xl font-semibold tracking-tight text-[#111111] leading-tight mb-4">
+        <h2 className="text-3xl font-semibold tracking-tight text-ink leading-tight mb-4">
           Let&apos;s work together.
         </h2>
-        <p className="text-base text-[#333333] mb-7 max-w-lg leading-7">
+        <p className="text-base text-ink-soft mb-7 max-w-lg leading-7">
           I&apos;m open to full-time roles, contracts, and thoughtful conversations.
         </p>
 
         <a
           href={`mailto:${profile.email}`}
-          className="inline-flex items-center gap-3 text-base font-semibold text-[#111111] hover:text-[#333333] transition-colors"
+          className="inline-flex items-center gap-3 text-base font-semibold text-ink hover:text-ink-soft transition-colors"
         >
           <Mail className="w-5 h-5" />
           {profile.email}
@@ -26,7 +26,7 @@ export default function CTA() {
             href={profile.github}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#4a4542] hover:text-[#111111] transition-colors"
+            className="text-quiet hover:text-ink transition-colors"
             aria-label="GitHub"
           >
             <GitHubIcon className="w-5 h-5" />
@@ -35,7 +35,7 @@ export default function CTA() {
             href={profile.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#4a4542] hover:text-[#111111] transition-colors"
+            className="text-quiet hover:text-ink transition-colors"
             aria-label="LinkedIn"
           >
             <LinkedInIcon className="w-5 h-5" />
@@ -44,7 +44,7 @@ export default function CTA() {
             href={profile.twitter}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#4a4542] hover:text-[#111111] transition-colors"
+            className="text-quiet hover:text-ink transition-colors"
             aria-label="X"
           >
             <XIcon className="w-5 h-5" />

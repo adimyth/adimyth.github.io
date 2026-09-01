@@ -29,12 +29,12 @@ export const recentProjects = [
   {
     name: "LLM Inference Experiments",
     description:
-      "Runnable scripts behind the LLM Inference essays on adimyth.in",
+      "Implementations and benchmarks for quantization, speculative decoding, and KV caching.",
     url: "https://github.com/adimyth/llm-inference-experiments",
   },
   {
-    name: "Realtime Streaming Systems",
-    description: "Realtime Stream Processing using Apache Kafka & Apache Flink",
+    name: "Real-Time Streaming Systems",
+    description: "Real-Time Stream Processing using Apache Kafka & Apache Flink",
     url: "https://github.com/adimyth/realtime-streaming-systems",
   },
   {
@@ -52,7 +52,7 @@ export const recentProjects = [
   {
     name: "AI Contract Review",
     description:
-      "AI-powered contract pre-screening - extracts clauses, flags deviations, suggests redlines, and recommends an action in seconds.",
+      "AI-powered contract pre-screening that extracts clauses, flags deviations, suggests redlines, and recommends an action.",
     url: "https://github.com/adimyth/ai-contract-review",
   },
 ];

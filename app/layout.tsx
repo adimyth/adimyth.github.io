@@ -62,10 +62,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${lora.variable} ${sourceSerif.variable} ${firaCode.variable} scroll-smooth antialiased`}
     >
-      <body className="min-h-full bg-background text-foreground">
+      <body className="min-h-full bg-paper text-ink">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`try{if(localStorage.getItem("theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`}
+        </Script>
         {children}
         <Footer />
         <PersonJsonLd />

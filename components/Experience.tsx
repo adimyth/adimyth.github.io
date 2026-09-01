@@ -5,7 +5,7 @@ export default function Experience() {
   return (
     <section id="experience" className="py-8 px-6">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-3xl font-semibold tracking-tight text-[#111111] mb-8">
+        <h2 className="text-3xl font-semibold tracking-tight text-ink mb-8">
           Experience
         </h2>
 
@@ -13,7 +13,7 @@ export default function Experience() {
           {experience.map((job, jobIdx) => (
             <div
               key={jobIdx}
-              className="flex items-start gap-5 py-7 border-b border-[#e4ded6] first:border-t"
+              className="flex items-start gap-5 py-7 border-b border-line first:border-t"
             >
               <div className="shrink-0">
                 <CompanyLogo logo={job.logo} company={job.company} />
@@ -27,16 +27,16 @@ export default function Experience() {
                         href={job.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-base font-bold text-[#111111] hover:text-[#333333] transition-colors"
+                        className="text-base font-bold text-ink hover:text-ink-soft transition-colors"
                       >
                         {job.company}
                       </a>
                     ) : (
-                      <p className="text-base font-bold text-[#111111]">{job.company}</p>
+                      <p className="text-base font-bold text-ink">{job.company}</p>
                     )}
-                    <p className="text-sm text-[#4a4542] mt-0.5">{job.location}</p>
+                    <p className="text-sm text-quiet mt-0.5">{job.location}</p>
                   </div>
-                  <p className="shrink-0 self-start text-sm font-medium text-[#333333]">
+                  <p className="shrink-0 self-start text-sm font-medium text-ink-soft">
                     {job.period}
                   </p>
                 </div>
@@ -45,7 +45,7 @@ export default function Experience() {
                   <ol className="relative mt-4 pl-6 space-y-3">
                     <span
                       aria-hidden
-                      className="absolute left-[3px] top-[10px] bottom-[10px] w-px bg-[#e4ded6]"
+                      className="absolute left-[3px] top-[10px] bottom-[10px] w-px bg-line"
                     />
                     {job.roles.map((r, i) => (
                       <li key={i} className="relative">
@@ -53,21 +53,21 @@ export default function Experience() {
                           aria-hidden
                           className={`absolute -left-6 top-[7px] w-[7px] h-[7px] rounded-full border ${
                             i === 0
-                              ? "bg-[#333333] border-[#333333]"
-                              : "bg-[#f4f1ea] border-[#a39b90]"
+                              ? "bg-ink-soft border-ink-soft"
+                              : "bg-paper border-line-hover"
                           }`}
                         />
-                        <p className="text-base font-semibold text-[#111111] leading-snug">
+                        <p className="text-base font-semibold text-ink leading-snug">
                           {r.title}
                         </p>
-                        <p className="text-sm font-medium text-[#4a4542] mt-0.5">
+                        <p className="text-sm font-medium text-quiet mt-0.5">
                           {r.period}
                         </p>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <p className="text-base font-semibold text-[#333333] mt-2">{job.role}</p>
+                  <p className="text-base font-semibold text-ink-soft mt-2">{job.role}</p>
                 )}
               </div>
             </div>
