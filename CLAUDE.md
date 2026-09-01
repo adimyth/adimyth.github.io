@@ -49,6 +49,24 @@ All copy and data lives in `lib/data.ts`. Edit that file to update any text, lin
 ## Git commit style
 - Do not add "Co-Authored-By: Claude" or any AI attribution in commit messages.
 
+## Claude Code essay handoff
+The essay page has a development-only handoff. Select a passage, choose an intent, add an optional note, then send it to a Claude Code session in tmux.
+
+Start Claude Code in a named tmux pane, then start the site with that pane as the target:
+
+```bash
+tmux new-session -s writing
+claude
+```
+
+In another terminal, from this repository:
+
+```bash
+CLAUDE_TMUX_TARGET=writing:0.0 npm run dev
+```
+
+The inbox is bound only to `127.0.0.1:3947`, accepts requests only from the local site, and sends text only to the fixed pane in `CLAUDE_TMUX_TARGET`. It is not included in the production export.
+
 ## Deployment notes
 - The repo must be named `adimyth.github.io` on GitHub for the site to resolve at the root domain.
 - In the GitHub repo settings: Settings then Pages then Source then "GitHub Actions".
