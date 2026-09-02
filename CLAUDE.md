@@ -4,6 +4,12 @@
 My personal portfolio website, hosted at adimyth.github.io.
 Single-page site built with Next.js 16 (App Router), Tailwind CSS v4, and shadcn/ui (Base UI, base-nova style).
 
+## Essay experiments live elsewhere
+
+This repository contains the portfolio site and essay source. Do not add experimental, benchmark, prototype, demo, or research-implementation code for an essay here. Keep that work in a separate public repository and reference it from the relevant essay with direct, reproducible links.
+
+The model is [`adimyth/llm-inference-experiments`](https://github.com/adimyth/llm-inference-experiments): the LLM inference essays live here, while their scripts, measurements, and experiment documentation live in that separate public repository. Site code required to render the portfolio remains in this repository.
+
 ## Stack
 - **Framework**: Next.js 16 with App Router, React 19, and TypeScript
 - **Styling**: Tailwind CSS v4 with shadcn/ui components
@@ -47,6 +53,22 @@ All copy and data lives in `lib/data.ts`. Edit that file to update any text, lin
 4. Add a nav link in `components/Nav.tsx`.
 
 ## Git commit style
+Commit messages follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+- Types used here: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`. The spec only mandates `feat` and `fix`; the rest are convention.
+- Scope is optional and names a part of the codebase, for example `feat(essays):` or `fix(nav):`.
+- The description is imperative and lowercase, with no trailing period. Write "add the dark mode toggle", not "Adds the dark mode toggle."
+- Keep the description under 50 characters. Anything longer belongs in the body.
+- The body explains what changed and why, wrapped at 72 characters. Keep using it; a bare one-line commit loses the reasoning.
+- Breaking changes take a `!` before the colon, or a `BREAKING CHANGE:` footer.
 - Do not add "Co-Authored-By: Claude" or any AI attribution in commit messages.
 
 ## Claude Code essay handoff
