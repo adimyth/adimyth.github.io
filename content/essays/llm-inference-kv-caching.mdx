@@ -2,7 +2,7 @@
 title: "LLM Inference: KV Caching"
 description: "Why a model repeats the growing conversation while it writes, how a KV cache avoids the waste, and why the memory bill decides how many people a GPU can serve at once."
 date: "2026-08-15"
-readTime: "14 min read"
+readTime: "17 min read"
 featured: true
 ---
 
@@ -246,9 +246,73 @@ For a multi-turn product this is the difference between the optimisation working
 
 ---
 
+## Prompt caching, the same thing with a bill
+
+Everything above is a decision about memory you own. Call a model over an API and you own none of it. The paging and the routing belong to somebody else, and you get the same mechanism, now with a price list.
+
+**Prefix caching and prompt caching are not the same thing.** Prefix caching is the engine feature from the section above. It is free, it happens on its own, and an entry lasts until the allocator needs the space. Prompt caching is a paid product built on that capability. It has a stated lifetime, a minimum size, and two prices: one to put a prefix into the cache and another to read it back. OpenAI does it for you automatically. Anthropic makes you opt in and mark the reusable span yourself.
+
+What carries over is the matching rule. The cache matches from the first token forward, so the first thing that differs between two requests ends the reuse, and everything after it gets recomputed.
+
+That turns how you assemble a prompt into a cost decision. Picture the support desk for a hardware company. Every incoming question gets answered against the same policy handbook: refund windows, warranty terms, escalation paths, about nine pages of it, or 5,144 tokens. The handbook is identical on every request. The question is different on every request. Nothing else varies.
+
+You have two pieces and two fields to put them in, which gives four arrangements:
+
+```
+A   user:   [question][handbook]
+B   user:   [handbook][question]
+C   system: [handbook]            user: [question]
+D   system: [question]            user: [handbook]
+```
+
+Eight requests each, same eight questions in the same order, same token count. How many of the seven requests that could have read from cache actually did:
+
+| Model | A | B | C | D |
+| --- | --- | --- | --- | --- |
+| GPT-5.6-terra | 0/7 | 0/7 | **7/7** | 0/7 |
+| GPT-4o | 0/7 | **7/7** | **7/7** | 0/7 |
+| GPT-5.4 | 0/7 | **7/7** | 6/7 | 0/7 |
+
+**A and D never cache on any model.** Both lead with the question, so no two requests share a prefix. D is the interesting one: it puts the question in the system field, and that saves it nothing.
+
+**B is where the models disagree.** Leading with the handbook inside the user message works on the two older models and does nothing at all on GPT-5.6, which read from cache on none of the eight requests. A separate check confirmed the boundary: the same handbook caches on GPT-5.6 when it sits in the system field and not when it sits at the head of a user message.
+
+**C works everywhere.** Put the fixed document in the system field and the varying question in the user message.
+
+> *C is the arrangement most people would reach for anyway, by instinct rather than by reasoning.* **The rule underneath it is that static text goes first.** *Learn the rule rather than the arrangement, because the next prompt will have more than two pieces in it.*
+
+On GPT-5.6 that gap is expensive. Column C bills at 0.25x what the same eight requests cost with no caching, and the other three bill at 1.25x, which is more than not caching at all: every request writes a fresh entry at 1.25x the input rate and nothing ever reads it back.
+
+### Caching does not start until the prompt is long enough
+
+OpenAI documents a minimum number of tokens before caching happens at all: 1,024 on GPT-5.6 and later, and 2,048 on earlier models. So I checked that published number against the models I was actually calling.
+
+| Model | Largest prompt that cached nothing | Smallest that cached | Published minimum |
+| --- | --- | --- | --- |
+| GPT-5.6-terra | 939 | 1,065 | 1,024 |
+| GPT-4o | 1,064 | 1,130 | 2,048 |
+| GPT-5.4 | 1,835 | 1,961 | 2,048 |
+
+GPT-5.4 sits where the documentation says. GPT-4o starts caching at about half that, so it is worth checking against the model you actually call.
+
+### When caching will not happen
+
+Six ways to get nothing. The first four are measured above. The last two are documented behaviour I did not test:
+
+- Anything that changes sits ahead of the fixed part. Columns A and D.
+- The fixed part sits inside a user message instead of the system field. Column B on GPT-5.6.
+- The prompt is shorter than that model's minimum.
+- Requests scatter across machines. The same prompt sent eight times to GPT-4o read from cache on 3 of 7 requests with no `prompt_cache_key`, and 7 of 7 with one. The label is a hint rather than a guarantee: GPT-5.4 hit 7 of 7 either way, because routing was never its problem.
+- The tool list changes, or serialises in a different order between requests.
+- The model, the response schema, or the reasoning effort changes. Each is part of the cache key.
+
+Every one of those fails the same way. No error, no warning, correct answers, and a larger bill.
+
+---
+
 ## Running this yourself
 
-I produced every figure in this essay with the three scripts below, and you can rerun them.
+I produced every figure in this essay with the scripts below, and you can rerun them.
 
 [`kv_cache_size.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/kv_cache_size.py) is arithmetic and nothing else. **It does not load or download any model.** It evaluates the formula above against published config values for those three architectures, then divides free memory by the result to get the concurrency table. Every figure in the two tables above comes from it.
 
@@ -256,7 +320,17 @@ I produced every figure in this essay with the three scripts below, and you can 
 
 [`kv_cache_measured.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/kv_cache_measured.py) produces the validation table. It reads the K and V tensors the model holds and compares them to the formula.
 
-All three are short enough to read before running. They make the cache’s memory cost and the avoided recomputation checkable in about a minute rather than taken on trust.
+Those three are short enough to read before running, and they make the cache's memory cost and the avoided recomputation checkable in about a minute rather than taken on trust.
+
+The prompt caching numbers come from three more, and these are different in a way worth stating. They call a hosted API, so they need a key, a network, and about a dollar. Everything above runs offline and free.
+
+[`prompt_cache_placement.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/prompt_cache_placement.py) produces the arrangement table. It sends the same eight questions against the same handbook four times over, assembling the request a different way each round, and reads the cache hits and the token accounting out of each response.
+
+[`prompt_cache_floor.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/prompt_cache_floor.py) slices the handbook to exact token counts and finds where each model starts caching.
+
+[`prompt_cache_routing.py`](https://github.com/adimyth/llm-inference-experiments/blob/main/kv-caching/prompt_cache_routing.py) runs the same prompt repeatedly with and without `prompt_cache_key`.
+
+Two details in there cost me a run each, and both would have produced numbers that looked fine. Every run prepends a random nonce to the handbook, because otherwise the first request reads an entry the previous run left behind and scores a hit it did not earn. And the floor sweep gives every slice its own nonce, because a 512 token slice is a byte-for-byte prefix of the 1,024 token one, so without it the short slices warm the long ones and every threshold after the first is wrong.
 
 ---
 
