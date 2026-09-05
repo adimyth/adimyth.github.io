@@ -1,4 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
+import { GitHubIcon } from "@/components/icons";
 import { recentProjects } from "@/lib/data";
 
 export default function RecentProjects() {
@@ -16,7 +17,7 @@ export default function RecentProjects() {
               href={project.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-start justify-between gap-6 py-4 border-b border-line first:border-t hover:border-line-hover transition-colors"
+              className="group flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 py-4 border-b border-line first:border-t hover:border-line-hover transition-colors"
             >
               <div className="min-w-0">
                 <p className="text-base font-medium text-ink leading-snug">
@@ -26,7 +27,11 @@ export default function RecentProjects() {
                   {project.description}
                 </p>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-quiet group-hover:text-ink transition-colors shrink-0 mt-1" />
+              <span className="inline-flex items-center gap-1.5 shrink-0 sm:mt-1 text-sm font-semibold text-quiet group-hover:text-ink transition-colors">
+                <GitHubIcon className="w-4 h-4" />
+                View on GitHub
+                <ArrowUpRight className="w-4 h-4" />
+              </span>
             </a>
           ))}
         </div>

@@ -27,33 +27,40 @@ export const profile = {
 
 export const recentProjects = [
   {
+    name: "Memory Weave",
+    description:
+      "A local memory layer for AI agents: evidenced records, hybrid retrieval, and a gate that can return empty so weak hits stay out of the prompt.",
+    url: "https://github.com/adimyth/memory-weave",
+  },
+  {
     name: "LLM Inference Experiments",
     description:
-      "Implementations and benchmarks for quantization, speculative decoding, and KV caching.",
+      "Six quantization methods on Llama 3.1 8B, scored against the same fp16 baseline. Speculative decoding that matches greedy output and arrives 1.8x sooner, plus KV cache size, wall time, and hosted prompt-cache cost.",
     url: "https://github.com/adimyth/llm-inference-experiments",
   },
   {
     name: "Real-Time Streaming Systems",
-    description: "Real-Time Stream Processing using Apache Kafka & Apache Flink",
-    url: "https://github.com/adimyth/realtime-streaming-systems",
-  },
-  {
-    name: "Async Job Processing",
     description:
-      "A job processing system with priority queues, scheduling, retries, and persistent job tracking using FastAPI, Redis Queue, and PostgreSQL.",
-    url: "https://github.com/adimyth/async-job-processing",
+      "Kafka ingest into Flink jobs that window product conversion and raise stateful fraud alerts as the events arrive.",
+    url: "https://github.com/adimyth/realtime-streaming-systems",
   },
   {
     name: "Self-hosted Video Recorder",
     description:
-      "A self-hosted video recording pipeline for Daily rooms with participant capture, layout composition, and MP4 encoding.",
+      "A headless bot joins a Daily room, encodes each participant in real time, and composes an MP4 that switches layout as people join and leave.",
     url: "https://github.com/adimyth/self-hosted-video-recorder",
   },
   {
     name: "AI Contract Review",
     description:
-      "AI-powered contract pre-screening that extracts clauses, flags deviations, suggests redlines, and recommends an action.",
+      "Extracts clauses against a playbook, then streams deviations, suggested redlines, a risk score, and a recommended action.",
     url: "https://github.com/adimyth/ai-contract-review",
+  },
+  {
+    name: "Async Job Processing",
+    description:
+      "Priority queues, retries with backoff, and a Postgres record for every job. If Redis dies, queued and started work is requeued on boot.",
+    url: "https://github.com/adimyth/async-job-processing",
   },
 ];
 
