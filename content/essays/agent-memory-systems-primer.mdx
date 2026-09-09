@@ -45,7 +45,7 @@ Then comes the instruction the rest of this essay turns on:
 
 > Bump the retry count to 3.
 
-I had given each of the five systems the same **forty facts about this user's software systems, engineering practices, and team**, followed by both sessions above. Then I searched each one using that instruction as the query. This reproduces the eager-retrieval pattern in which an application searches memory using the latest user message and inserts the results into the next model call. *All five returned as many results as their default limits allowed.* Letta had compiled roughly 190 characters of profile into the system prompt before the turn began, with no search involved.
+I had given each of the five systems the same **forty facts about this user's software systems, engineering practices, and team**, followed by both sessions above. Then I searched each one using that instruction as the query. This reproduces the eager-retrieval pattern in which an application searches memory using the latest user message and inserts the results into the next model call. *All five returned as many results as their default limits allowed.* Letta had compiled roughly 200 characters of profile into the system prompt before the turn began, with no search involved.
 
 Returning the configured number of search results is not a bug. Each of these systems is doing what it was built to do.
 
@@ -209,12 +209,11 @@ The user says: "I switched to unittest. Rohan left Google in April and joined Me
 
 AgentCore also kept both the Google and Meta employment claims active. Like Mem0, AgentCore retains the old and new claims instead of marking the old claim as superseded. Unlike Mem0, AgentCore creates records for the same claim across multiple enabled strategies.
 
-**Letta overwrites in place.** Its agent rewrote the block and the January wording is gone, with no lineage, in all three runs. After the update turn, run 1's block read:
+**Letta overwrites in place.** Its agent rewrote the block and the January wording is gone, with no lineage. In run 2 the agent had never put the January facts in the block at all. After the update turn, run 1's block read:
 
 ```
 The user is Aditya, a software engineer.
-Aditya now writes tests in unittest and keeps commit messages conventional.
-Rohan joined Meta after leaving Google in April.
+Aditya writes tests in unittest and follows conventional commit messages. Aditya's colleague, Rohan, is on-call; he left Google in April and joined Meta.
 ```
 
 **Graphiti closes the interval.** It read "Rohan left Google in April and joined Meta", inferred the boundary from natural language, and wrote it down:
@@ -388,7 +387,7 @@ The cross-encoder is useful but limited. It can reject weak candidates; it canno
 
 Read the second column downward: yes, no, no, yes, no. A cutoff is a horizontal line through that table, and there is nowhere to draw one that keeps both answerable queries and drops all three unanswerable ones. Anything above 0.498 loses the March question. Anything below 0.635 admits the latency turn.
 
-**Letta has nothing to tune it on.** Its core block goes into the system prompt with no query and no retrieval step in front of it, so there is no score for a threshold to test. Across the three runs that block ran to between 185 and 200 characters, and it reaches the model whatever the turn is. Its archival store is searchable, but `passages.search` takes `top_k`, tags and date bounds and no score floor, so five rows come back on every probe.
+**Letta has nothing to tune it on.** Its core block goes into the system prompt with no query and no retrieval step in front of it, so there is no score for a threshold to test. Across the three runs that block ran to 224, 176 and 184 characters, and it reaches the model whatever the turn is. Its archival store is searchable, but `passages.search` takes `top_k`, tags and date bounds and no score floor, so five rows come back on every probe.
 
 **AgentCore is the same without the always-on block.** Its `searchCriteria` takes a query, a strategy id, `topK` and metadata filters. No score appears anywhere in it, so the only thing you can turn down is how many rows come back. Amazon's newer managed Harness does expose a `relevanceScore` beside `topK` in its `retrievalConfig`, which I did not test.
 
