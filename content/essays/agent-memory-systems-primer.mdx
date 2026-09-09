@@ -1,0 +1,535 @@
+---
+title: "Related Is Not Useful: Agent Memory Systems in 2026"
+description: "Eight families of agent memory, one transcript, and five systems measured at their documented defaults. All five return results for a turn that asks nothing of memory, and none surfaces the stored rule that would have changed the answer."
+date: "2026-09-07"
+readTime: "35 min read"
+featured: true
+draft: false
+---
+
+> Most memory systems rank stored records by how closely they match the user query. The harder problem is deciding whether the agent should use any of them on this turn and whether that help justifies the cost: model distraction, stale facts, misplaced private information, and additional tokens.
+
+## TL;DR
+
+I gave five agent memory systems the same forty background facts about one engineer's work, plus a short two-session transcript, and then put ordinary turns to them.
+
+Give the agent an instruction that requires no stored context, like "bump the retry count to 3", and every system returns its full quota of results. Asking for the name of a dog that appears nowhere in the store does the same. At their documented defaults, nothing except the result cap keeps a row out.
+
+Give the agent an instruction to which a stored rule applies, like "add the Stripe API key to the config", and none of the five surfaces "secrets go in AWS Secrets Manager, never in environment files", though four of them had it in the store.
+
+**Raising the result limit until the useful memory appears means returning the whole store on questions whose right answer was nothing.** Measured on one of the five, recovering all nine buried rules requires a limit of 40, which returns all 40 rows on an ordinary turn.
+
+These systems rank memories by how closely their wording matches the question. That differs from whether a memory would improve the answer.
+
+<LinkPreview href="https://github.com/adimyth/agent-memory-experiments" title="adimyth/agent-memory-experiments" description="One fixed transcript run through five agent memory systems at their documented defaults. Runners, raw dumps, and every sweep behind the numbers in this essay." />
+
+---
+
+## The transcript
+
+The transcript spans two sessions, eight months apart, between one user and one coding agent.
+
+In January the user mentions three things worth retaining:
+
+- Tests use pytest.
+- Commit messages follow the Conventional Commits specification.
+- Rohan is on call for payments at Google.
+
+In September a new conversation begins with an empty transcript. The user says three more things:
+
+- The checkout latency graph is red.
+- They have switched to unittest.
+- Rohan left Google in April and joined Meta.
+
+Then comes the instruction the rest of this essay turns on:
+
+> Bump the retry count to 3.
+
+I had given each of the five systems the same **forty facts about this user's software systems, engineering practices, and team**, followed by both sessions above. Then I searched each one using that instruction as the query. This reproduces the eager-retrieval pattern in which an application searches memory using the latest user message and inserts the results into the next model call. *All five returned as many results as their default limits allowed.* Letta had compiled roughly 190 characters of profile into the system prompt before the turn began, with no search involved.
+
+Returning the configured number of search results is not a bug. Each of these systems is doing what it was built to do.
+
+### How this was measured
+
+Every retrieval setting is at its package default. Where a system let me choose its models I standardized them, so Mem0, LangMem, Graphiti and Letta all extract with `gpt-4o` at `temperature=0` and embed with `BAAI/bge-m3`. AgentCore is the exception: its built-in strategies are service-managed, so its models are Amazon's.
+
+{/* Parked, not rendered. Restore into the paragraph above if the eight-month gap needs addressing:
+The transcript's eight-month gap is a timestamp rather than a wait: Graphiti and AgentCore take an explicit date on each episode or event, so those two were told January and September, and the other three have nowhere to put one.
+*/}
+
+Each store was seeded with the same forty facts before the transcript, all of them drawn from one engineer's work. A smaller store would make "the search returned everything" true and meaningless, and keeping the facts inside one domain is what makes the irrelevant results plausible in isolation. The forty are in [`distractors.py`](https://github.com/adimyth/agent-memory-experiments/blob/main/distractors.py), and the [experiments repo](https://github.com/adimyth/agent-memory-experiments) has the rest of the protocol.
+
+The experiments used Mem0 OSS 2.0.20, LangMem 0.0.30, Graphiti 0.30.1, Letta's self-hosted 0.16.8 server, and the AgentCore APIs available in September 2026. "Default" throughout means the default exposed by that exact package or interface.
+
+## Three decisions, eight families
+
+**What is a memory record?** A synthesized paragraph about the user. A one-sentence fact. A Markdown file. An edge between two entities with a validity window. A JSON value at a folder path and a key. A typed record with an identity and a lifecycle.
+
+**Who writes it, and when?** The agent may call a tool during the session, or the application may hand a transcript to an extractor. A background process may also read the conversation after it ends and write memories without an explicit request.
+
+**Where does it land in the next model call?** The system prompt, a user message, or a tool result. This question decides whether the application inserts memory automatically or the model must request it through a tool.
+
+Search is a mechanism, not a family. Mem0 v3 fuses dense similarity, BM25, and entity matching into a single score, Graphiti fuses dense similarity, BM25, and graph traversal, and OpenClaw's `memory_search` combines vector similarity with keyword matching. ***Multi-signal retrieval used to be a differentiator and is now common.*** The remaining questions concern what constitutes a record and whether a low-scoring result is returned, filtered, or ignored.
+
+| Family | What a record is | Who writes it, and when | Where it lands in the next call | Products |
+| --- | --- | --- | --- | --- |
+| Prompt profile | A synthesized paragraph about the user | The product's memory pipeline, from the chat | Edited into the system prompt every turn | ChatGPT before June 2026 |
+| Background-synthesized profile | A memory state built from many past conversations | A background process, after conversations end | Not publicly documented | ChatGPT with Dreaming, from June 2026 |
+| Files | Markdown on disk | The agent or the user, during the session | A hot slice at session start, in the system prompt or just after it | Claude Code, Hermes, OpenClaw |
+| Memory filesystem | Markdown in a git-backed repository | The agent with file tools, plus optional background subagents | Files under `system/` in the system prompt every turn | Letta |
+| Fact index | One-sentence facts in a vector store | An extractor LLM, when the application calls `add` | Hit strings appended to the system prompt | Mem0 |
+| Temporal graph | Entities and relationships with validity windows | An LLM extractor, per ingested episode | A graph query, now or as of a date | Zep, Graphiti |
+| Namespaced store | A JSON value at a folder path plus a key | The agent via `manage_memory`, or a background store manager | Search hits pasted into the system prompt, or a tool message | LangMem |
+| Record memory | Typed records with identity, evidence, and a lifecycle | The agent via a write tool, plus background strategies after events | A tool message, prompt text the application injected, or both | Amazon Bedrock AgentCore Memory |
+
+## The eight families
+
+### Prompt profile: ChatGPT before June 2026
+
+ChatGPT and Claude read the chat and keep a synthesized paragraph about the user. The paragraph is inserted into the system prompt on every later turn. There is no query, ranking, or retrieval step to inspect. The profile remains in the prompt whether or not the turn needs it.
+
+```
+The user is a developer who writes tests in pytest and uses conventional commits.
+Rohan is on-call at Google, on payments.
+```
+
+Claude may expose something similar. Anthropic documents on-demand conversation search, preferences, project instructions and styles, but not an always-present synthesized block or where such a thing would sit in the prompt, so I have left it out of the taxonomy rather than guess.
+
+The profile stays until the product rewrites it. The profile contains current prose rather than structured validity dates, so it cannot directly represent when a fact stopped being true.
+
+### Background-synthesized profile: ChatGPT with Dreaming
+
+ChatGPT with Dreaming replaced the saved-memories list as ChatGPT's foundation in June 2026. A background process reads across past conversations after they end and synthesizes what the assistant remembers.
+
+Moving the write off the message path is the important change. A separate pass over chat history can rewrite a memory that nobody has mentioned again. In OpenAI's example, a memory that reads "you're going to Singapore in July" later changes to "you went to Singapore in July 2026" without any action from the user. The passage of time changes the fact without anyone contradicting it, a capability I did not find documented in any other system here.
+
+A system that writes on the message path can update its store as soon as the user provides the information, but the store remains stale if the agent fails to call the write tool. *Dreaming writes afterwards, so the store is briefly stale by design and does not depend on the agent remembering to act.*
+
+OpenAI documents what the process reads and writes, and the controls the user gets over it. It does not say where the synthesized state lands in the next model call, and I could not find out either.
+
+### Files: Claude Code, Hermes, OpenClaw
+
+Claude Code, Hermes, and OpenClaw store memory as Markdown on disk and copy a bounded slice of it into the model call at session start. What differs is how each one bounds it.
+
+- **Claude Code** splits the writers. `CLAUDE.md` is the user's file, and auto memory writes `MEMORY.md` on its own, on by default. The first 200 lines or 25KB of `MEMORY.md` load every session, and the documentation is explicit that `CLAUDE.md` arrives as a user message after the system prompt rather than inside it.
+- **Hermes** bounds by character count. `MEMORY.md` holds notes about the world, capped at 2,200 characters, and `USER.md` holds preferences and communication style, capped at 1,375. Both are "injected into the system prompt as a frozen snapshot at session start", captured once and never changed mid-session. Everything else stays in past conversations, searched through `session_search` over SQLite FTS5.
+- **OpenClaw** bounds in several ways at once. `USER.md` and `MEMORY.md` load at session start along with today's and yesterday's dated notes, while older `memory/YYYY-MM-DD.md` files stay out of the bootstrap prompt and are reached through `memory_search` and `memory_get`. That search ships with a cap of six results and a score floor of 0.35, a 30-day recency half-life on dated notes, and MMR diversity ordering. Promoted entries in `MEMORY.md` and `USER.md` can also be injected automatically, up to three per turn, on a strong trigger match.
+
+Hermes's cap is the most interesting decision in the family, because it is enforced at write time. A write that would exceed the limit does not truncate or silently drop the oldest entry. The memory tool returns an error, and the agent must consolidate or remove something in the same turn before retrying. ***Hermes forces the agent to decide what to retain before writing it.***
+
+OpenClaw and Mem0 are the two systems here documented as shipping non-zero score floors: 0.35 and 0.1 respectively. Graphiti's ships at 0 and the other three expose none. The gap between those two numbers is the interesting part, because Mem0's 0.1 sits below every score it produced on my probes and never binds, while 0.35 is high enough to decline. I did not run OpenClaw, so that is its documentation rather than a measurement.
+
+Markdown provides no enforced supersession schema. A product can encode replacement by convention, with dates or an active-versus-superseded marker, and OpenClaw's documentation now recommends exactly that, but nothing makes the agent maintain it. Left to itself the agent either overwrites the line, losing the old fact outright, or adds a second line and leaves the first, leaving two claims live with nothing to say which one is current. Either way, the model sees only the file contents loaded at the start of the session.
+
+### Memory filesystem: Letta
+
+Letta uses [MemFS](https://docs.letta.com/concepts/memfs), a git-backed memory filesystem the agent reads and edits with ordinary file tools. Files under `system/` load into the system prompt on every turn. Everything else stays out of context until the agent opens it, though the file tree itself is always visible, so the agent can see what exists before deciding to read it. Every edit is committed, which gives the store a version history and a boundary between saved memory and uncommitted changes. Nothing else in this essay has that.
+
+<Callout kind="caveat" title="The documentation and the server disagree">
+Letta's documentation says all agents use MemFS, but the self-hosted 0.16.8 server exposes only the older core-block memory model. The experiments therefore run the core-block model, which is what anyone self-hosting Letta today actually gets.
+</Callout>
+
+Either way, the agent's own past edits decide how much memory sits in the prompt on every turn.
+
+
+### Fact index: Mem0
+
+Each row is a short fact string, plus an embedding of that string, an id, timestamps, and a partition the application passed in. An extractor LLM produces the rows when the application calls `add`. The rows sit in the vector store until the application searches and appends the results to the existing system prompt.
+
+Extraction is "single-pass ADD-only (one LLM call, no UPDATE/DELETE)". When a fact changes, the newer row is stored alongside the original and ranking decides which surfaces first. The application can `update` or `delete` a row by id. The extractor does not.
+
+Search scores a row on semantic similarity, BM25 keyword matching, and entity matching, then fuses the three into one number.
+
+
+### Temporal graph: Zep, Graphiti
+
+Graphiti is the open-source engine underneath Zep, and everything below is Graphiti's. A record is an edge between two entities, carrying a validity window: when the fact held in the world, as distinct from when anyone was told. An LLM extractor writes edges for each ingested episode. When a fact changes, the old interval closes and a new edge opens instead of deleting the old edge.
+
+```
+(Aditya) --prefers-->   (pytest)               valid 2026-01-10 .. ∞
+(Aditya) --prefers-->   (conventional commits) valid 2026-01-10 .. ∞
+(Rohan)  --works_at-->  (Google)               valid 2026-01-10 .. ∞
+```
+
+
+### Namespaced store: LangMem
+
+A record is a JSON value stored at a namespace and a key. The namespace is a folder path the application chooses, a tuple of strings like `("users", "aditya")`. The key is whatever the second argument to `store.put` was. LangMem itself has no vocabulary of `test_runner` or `commit_style`; those strings exist only if the application passed them. The official `manage_memory` tool never names a key at all: on create it writes a UUID, and the agent updates or deletes by that id.
+
+| Namespace | Key | Value |
+| --- | --- | --- |
+| ("users", "aditya") | test_runner | \{"text": "pytest"\} |
+| ("users", "aditya") | commit_style | \{"text": "conventional"\} |
+| ("people", "rohan") | employer | \{"text": "Google"\} |
+
+<TableNote>Named keys because the application passed them. Official `manage_memory` shows UUIDs instead, with the same three values behind them.</TableNote>
+
+The same store has two write paths and two read paths, and which actor drives each is the thing to watch. The application is the code you write around the model; the agent is the model choosing tools inside it.
+
+**Writes.**
+
+- The agent calls `manage_memory` during the session.
+- A background extractor, `create_memory_store_manager`, reads the transcript after the chat and writes facts without the agent calling anything.
+
+**Reads.**
+
+- The application searches before the model runs: take the user's last message, call `store.search` with it, and paste the results into the system prompt. LangMem's official hot-path quickstart does exactly this.
+- The application registers `search_memory` as a tool, and the agent decides whether to call it. The results arrive as a tool message.
+
+The read paths are where the difference bites. With the application searching, memory enters every turn and the model has no say. With the tool, the agent decides, and may never ask.
+
+Overwriting only happens at the same key. Two different keys never merge, however similar the text.
+
+
+### Record memory: Amazon Bedrock AgentCore Memory
+
+A record is a typed object under a namespace path the application configures per strategy, like `/facts/{actorId}/`. The body depends on which strategy wrote it: a fact, a preference, a session summary, or an episode. After the application sends conversation messages to AgentCore as events, each enabled strategy extracts memories asynchronously on Amazon's servers and consolidates them only against records created by the same strategy.
+
+That last clause defines the system. A claim about pytest becomes three records: a semantic fact, a preference record containing `context` and `categories` JSON, and a line in a topic-grouped session summary. Three built-in strategies turned roughly 43 input sentences into 70 records:
+
+- 45 semantic facts.
+- 19 preference records.
+- 6 session summaries.
+
+Records reach the model through the same two paths that LangMem uses. The application calls `RetrieveMemoryRecords` with the user text and copies the hits into the conversation, or the Strands `AgentCoreMemoryToolProvider` exposes record, retrieve, list, and get as agent tools and returns the hits in a tool message.
+
+
+## What happens when a fact changes
+
+The user says: "I switched to unittest. Rohan left Google in April and joined Meta." Both sentences update what was recorded in January.
+
+**Mem0 appends and never edits.** The update turn added two rows and changed none, in all three runs, which is ADD-only extraction working exactly as specified. Afterwards the store holds both the pytest row and the unittest row.
+
+**AgentCore keeps both, in parallel, per strategy.** In all three runs `/facts/aditya/` held both claims afterwards, with nothing marking either as superseded:
+
+```
+/facts/aditya/  "The user writes tests in pytest."
+/facts/aditya/  "The user switched to unittest."
+```
+
+AgentCore also kept both the Google and Meta employment claims active. Like Mem0, AgentCore retains the old and new claims instead of marking the old claim as superseded. Unlike Mem0, AgentCore creates records for the same claim across multiple enabled strategies.
+
+**Letta overwrites in place.** Its agent rewrote the block and the January wording is gone, with no lineage, in all three runs. After the update turn, run 1's block read:
+
+```
+The user is Aditya, a software engineer.
+Aditya now writes tests in unittest and keeps commit messages conventional.
+Rohan joined Meta after leaving Google in April.
+```
+
+**Graphiti closes the interval.** It read "Rohan left Google in April and joined Meta", inferred the boundary from natural language, and wrote it down:
+
+| Fact | valid_at | invalid_at |
+| --- | --- | --- |
+| Rohan works at Google on payments. | 2026-01-10 | 2026-04-01 |
+| Rohan joined Meta. | 2026-04-01 | none |
+
+**LangMem either updates the existing record or appends a new one, depending on the store size.** I did not expect this finding, and it could cause subtle production failures. I ran the same code, transcript, model, and temperature, changing only whether I seeded the forty prior facts:
+
+| Store | Runs | Rows before and after | Edited in place | Added |
+| --- | --- | --- | --- | --- |
+| Transcript only | 3 of 3 | 3 to 3 | 2 | 0 |
+| Plus 40 prior facts | 3 of 3 | 42-43 to 44-45 | 0 | 2 |
+
+<TableNote>Unanimous in both directions, not a tendency. On a small store the background manager overwrote at the same UUIDs and the January wording vanished. On a large store the identical code appended, leaving the pytest row and the unittest row both live at different keys.</TableNote>
+
+The result is consistent with `create_memory_store_manager`'s default `query_limit` of 5: the manager cannot update an existing record that falls outside the memories it retrieves. It sees only the five most similar existing memories when it decides whether to update or insert. Once the store is big enough that the pytest row falls outside that window, the manager cannot update what it never retrieved, so it inserts a second one. ***A memory layer that consolidates correctly in a demo can degrade to append-only in production, and nothing in the output says it happened.***
+
+## Who writes it, and when
+
+Most of these systems have converged on the same answer and they got there separately: the agent is not the only thing that should decide what gets remembered, so a second pass reads the transcript after the conversation ends and writes the store. Three separate teams chose the same word for it.
+
+**ChatGPT** calls it dreaming, and reads across many past conversations. It gives the user a summary page showing the current synthesized state, which reports what the process concluded but not what it changed or what the previous version said.
+
+**Letta** also calls it dreaming, and reads recent conversations. It can review proposed updates in a second background conversation before committing them, so the check happens before the write.
+
+**OpenClaw** calls it dreaming too, and extends the metaphor through light, REM, and deep phases: the light phase stages candidates without writing to `MEMORY.md`, and only the deep phase promotes them to long-term memory. Its check happens after the write, storing the pre-image of every accepted rewrite and appending a readable summary to `DREAMS.md`.
+
+**LangMem** has no metaphor. `create_memory_store_manager` reads the transcript after the chat, and the application decides when to run it.
+
+**AgentCore** runs one pass per enabled strategy, triggered by events rather than by the end of a conversation. Extraction happens asynchronously on Amazon's servers, and across six ingestions its record count took between 124 and 170 seconds to stop moving, and I found no documented completion signal in the APIs I used.
+
+**Mem0, Graphiti, Claude Code and Hermes** have no separate pass at all. Mem0 and Graphiti both extract inline, on `add` and `add_episode` respectively; the other two write files during the session.
+
+Moving writes off the message path leaves a window in which the store is knowably wrong. AgentCore's two minutes is that window.
+
+## Memories returned when none were needed
+
+> Bump the retry count to 3.
+
+Nobody asked about memory. Two of the forty seeded facts are about retries:
+
+- An earlier retry storm doubled load on the payments service.
+- The retry policy for outbound webhooks uses exponential backoff.
+
+Every system found them and put them first:
+
+| System | Retry storm | Retry policy |
+| --- | --- | --- |
+| Mem0 | rank 1 | rank 2 |
+| LangMem | rank 1 | rank 2 |
+| AgentCore | rank 1 | rank 2 |
+| Letta | rank 1 | rank 2 |
+| Graphiti | never stored | rank 1 |
+
+<TableNote>Identical across all three runs. Ranking is not what fails here. Graphiti's extractor never built an edge for the retry storm, so it had only one of the two to return.</TableNote>
+
+Then each kept going to its cap. Mem0 added eighteen more rows, ending at alert runbooks and line length. Nothing about the turn decided that number. Twenty is what Mem0 returns.
+
+It returns twenty on every other probe too, including `What is my dog's name?`, which the store cannot answer at all:
+
+| System | Cap | Probes returning the cap |
+| --- | --- | --- |
+| Mem0 | 20 | 15 of 15 |
+| LangMem | 10 | 15 of 15 |
+| AgentCore | 10 | 15 of 15 |
+| Letta | 5 | 15 of 15 |
+| Graphiti | 10 | 15 of 18 |
+
+<TableNote>Graphiti's three exceptions are its date-filtered query, once per run. On every other probe, in every run, nothing but the cap kept a row out.</TableNote>
+
+
+The obvious objection is that I left every threshold at its permissive default, and Mem0 ships one at 0.1. So the question is whether these systems can be tuned to return nothing when nothing applies, while still returning something when a memory does apply.
+
+## Can thresholds fix this?
+
+| System | Parameter | Default | Does tuning fix it? |
+| --- | --- | --- | --- |
+| Mem0 | `threshold` | `0.1` | Partly. No value gets all four probe classes right |
+| Graphiti | `reranker_min_score`, `sim_min_score` | `0` with RRF | Yes, with a different reranker |
+| LangMem | none | N/A | Nothing to tune, and the scores are not separable |
+| Letta | none | N/A | Nothing to tune |
+| AgentCore | none in the tested API | N/A | Nothing to tune |
+
+**Mem0's scores do separate the queries it can answer from the ones it cannot.** Each probe is its own search; the score below is the best match that search returned.
+
+| Query | Answerable from the store | Best match returned | Score |
+| --- | --- | --- | --- |
+| Where was Rohan working in March? | yes | Rohan is on-call and works at Google on the payments team. | 0.858 |
+| What do I write tests in? | yes | User writes tests in pytest and maintains conventional commit messages. | 0.798 |
+| Bump the retry count to 3. | no | An earlier retry storm doubled load on the payments service. | 0.637 |
+| What is my dog's name? | no | Line length is capped at 100 characters. | 0.461 |
+| The checkout latency graph is red. | no | A checkout outage in February was caused by connection pool exhaustion. | 0.453 |
+
+<TableNote>Both answerable queries score above all three unanswerable ones, and the closest pair are 0.798 and 0.637. The default threshold of 0.1 sits below everything and never binds.</TableNote>
+
+A separation that clean invites the obvious fix: raise the threshold until the unanswerable queries fall below it. So I swept it upward, and no setting gets all four probe classes right:
+
+| threshold | ordinary | answerable | absent | dated | What it means |
+| --- | --- | --- | --- | --- | --- |
+| 0.1 | 20 | 20 | 20 | 20 | Nothing is filtered. Even the dog question returns twenty rows. |
+| 0.3 | 20 | 20 | 20 | 20 | Still nothing filtered. |
+| 0.5 | 15 | 3 | 0 | 2 | The dog question finally returns nothing, and the ordinary turn still returns fifteen. |
+| 0.6 | 1 | 1 | 0 | 2 | The ordinary turn is down to one row, and so is the test-runner question. |
+| 0.65 | 0 | 0 | 0 | 1 | The ordinary turn goes quiet at last, and takes the test-runner question with it. |
+| 0.7 | 0 | 0 | 0 | 0 | Everything goes quiet, including both questions the store can answer. |
+
+<TableNote>The four columns are the probe classes: ordinary is the retry instruction, answerable is the test-runner question, absent is the dog question, dated is the March question. A correct row would read zero, some, zero, some. No row does.</TableNote>
+
+
+**Graphiti is the exception, but its parameter name is misleading.** Graphiti first gathers candidate memories through vector search, keyword search, and graph traversal. It then uses RRF as its default reranker to combine those three ordered lists into one.
+
+`reranker_min_score` sounds like a relevance threshold. RRF never receives relevance scores. It receives each candidate's position in the vector, keyword, and graph lists, then turns those positions into its own score. `reranker_min_score` filters that position-derived score, so it removes candidates by placement in the lists rather than by whether they should enter the model's context.
+
+For example, imagine vector and keyword search return these candidates. Graphiti's implementation adds `1 / position` for every list a candidate appears in:
+
+| Position | Keyword search | Vector search |
+| ---: | --- | --- |
+| 1 | Memory A | Memory C |
+| 2 | Memory B | Memory A |
+| 3 | Memory C | Memory D |
+
+| Memory | RRF calculation | RRF score |
+| --- | --- | ---: |
+| A | `1/1 + 1/2` | 1.500 |
+| C | `1/3 + 1/1` | 1.333 |
+| B | `1/2` | 0.500 |
+| D | `1/3` | 0.333 |
+
+Memory A receives the highest score because both searches placed it near the top. The calculation never asks whether Memory A would help with the request.
+
+Notice what that means for a candidate only one search found: it scores exactly `1 / position`. So `reranker_min_score` is a position cutoff wearing a score's clothing. Setting it to 0.2 asks for the top five, setting it to 0.6 asks for the top one, and the sweep matches that arithmetic on every probe: floors of 0.1, 0.2, 0.3 and 0.6 returned 10, 5, 3 and 1 rows.
+
+That is what RRF does. Running the floor against my own store shows why it does not help. At an RRF floor of `0.2`, Graphiti returned five rows for each of these three queries:
+
+| Query | Rows returned at RRF floor 0.2 | Correct result |
+| --- | --- | --- |
+| `Bump the retry count to 3.` | 5 | 0 rows |
+| `What is my dog's name?` | 5 | 0 rows |
+| `Where was Rohan working in March?` | 5 | 1 row |
+
+The RRF floor shortened all three lists. It did not distinguish an instruction that needs no memory from a question with one stored answer.
+
+Graphiti offers another reranker, a cross-encoder. Instead of scoring a candidate by its place in a list, it reads the request and that candidate together. It scores how well that candidate matches that request, and that score means something on its own, so `reranker_min_score` can reject weak candidates instead of merely shortening the list.
+
+The two rerankers produce different results:
+
+| Search setting | Score floor | Retry instruction | Dog-name question | March employer question |
+| --- | --- | --- | --- | --- |
+| Default RRF | 0.1 | 10 rows | 10 rows | 10 rows |
+| Default RRF | 0.2 | 5 rows | 5 rows | 5 rows |
+| Cross-encoder | 0.1 | 0 rows | 0 rows | 1 row |
+
+<TableNote>The retry instruction and dog-name question need no memory, so zero rows is correct. The March question has one stored answer, so one row is correct. The RRF floor reduces each list. The cross-encoder floor separates the three cases. The cross-encoder result stays the same at every floor from 0.1 to 0.6. For the technical background, see the [RRF paper](https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf) and [Sentence Transformers' cross-encoder guide](https://www.sbert.net/docs/cross_encoder/usage/usage.html).</TableNote>
+
+> **The cross-encoder is the only tested setting that does both jobs:** it returns no memory when nothing applies and retains the one memory that answers the March question.
+
+The cross-encoder is useful but limited. It can reject weak candidates; it cannot retrieve a fact Graphiti never stored. Graphiti failed to extract the test-runner fact in every run, so the test-runner question returns nothing under every setting.
+
+**LangMem has no threshold parameter**, so the filtering has to happen in your own application: read the scores it returns and drop the rows below whatever cutoff you pick. Here is every probe, sorted by score:
+
+| Query | Answerable from the store | Best match returned | Score |
+| --- | --- | --- | --- |
+| What do I write tests in? | yes | Tests are written using unittest. | 0.650 |
+| The checkout latency graph is red. | no | A checkout outage in February was caused by connection pool exhaustion. | 0.635 |
+| Bump the retry count to 3. | no | An earlier retry storm doubled load on the payments service. | 0.596 |
+| Where was Rohan working in March? | yes | Rohan is on-call at Google, and works on payments. | 0.498 |
+| What is my dog's name? | no | Line length is capped at 100 characters. | 0.412 |
+
+Read the second column downward: yes, no, no, yes, no. A cutoff is a horizontal line through that table, and there is nowhere to draw one that keeps both answerable queries and drops all three unanswerable ones. Anything above 0.498 loses the March question. Anything below 0.635 admits the latency turn.
+
+**Letta has nothing to tune it on.** Its core block goes into the system prompt with no query and no retrieval step in front of it, so there is no score for a threshold to test. Across the three runs that block ran to between 185 and 200 characters, and it reaches the model whatever the turn is. Its archival store is searchable, but `passages.search` takes `top_k`, tags and date bounds and no score floor, so five rows come back on every probe.
+
+**AgentCore is the same without the always-on block.** Its `searchCriteria` takes a query, a strategy id, `topK` and metadata filters. No score appears anywhere in it, so the only thing you can turn down is how many rows come back. Amazon's newer managed Harness does expose a `relevanceScore` beside `topK` in its `retrievalConfig`, which I did not test.
+
+Across the five:
+
+> At their documented defaults, all five return memories on a turn that needs none. Graphiti ships a relevance-scored ranking that declines correctly here, and its default search does not use it. Mem0 ships a threshold that helps, though no setting gets all four probe classes right. LangMem, Letta, and AgentCore expose no equivalent control in the interfaces tested.
+
+## Useful memories that retrieval misses
+
+The same systems fail in the other direction too, and that failure is quieter.
+
+Start with the clearest case. The request is `Add the Stripe API key to the config.` The store holds `Secrets are stored in AWS Secrets Manager, never in environment files.`, which is the one rule that should change how the agent carries the request out.
+
+Mem0 returned twenty rows, led by "The API gateway enforces a 30 second request timeout" and "The March incident review recommended adding circuit breakers". The secrets rule was not among them. Twenty rows outranked it, and the one that came first shares only the word API.
+
+Every system missed it. Four had the rule in the store and did not return it; Graphiti never extracted it in the first place.
+
+The reason is visible in the wording. The request says Stripe, API, key, config. The rule says none of those. Sort all forty stored facts by how closely their wording matches the request and the secrets rule comes out **37th of 40**. Mem0 returns the top twenty, LangMem and AgentCore the top ten, Letta the top five. At 37th it is out of reach of all of them, and no amount of the request being *about* secrets changes where the sort puts it.
+
+### The gradient
+
+That is one probe. Eight more were built the same way, each pairing a realistic request with a standing rule that should change the answer and shares almost no words with it. They span the range deliberately, from a rule that ranks 37th to one that ranks 1st, because a set of only hard cases would prove nothing.
+
+| Query | The rule that should surface | Similarity rank | AgentCore | Graphiti | LangMem | Letta | Mem0 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Add the Stripe API key to the config. | Secrets are stored in AWS Secrets Manager, never in environment files. | 37/40 | – | absent | – | – | – |
+| Drop the legacy_status column. | Migrations must be backwards compatible for one release. | 25/40 | 3 | absent | – | – | – |
+| Add a helper that parses the CSV. | Type hints are required on all new Python code. | 19/40 | 2 | absent | – | – | 19 |
+| Reformat this function. | Line length is capped at 100 characters. | 10/40 | 6 | absent | – | – | 10 |
+| Ship this fix straight to production. | Deploys go out through GitHub Actions on merge to main. | 7/40 | 1 | absent | 10 | – | 9 |
+| Write a query to find duplicate charges. | The payments database is Postgres 16 on RDS with a read replica. | 5/40 | 5 | 8 | 4 | 5 | 9 |
+| Bump the requests library. | Dependency updates are batched weekly. | 3/40 | 4 | absent | 6 | 3 | 4 |
+| Add an alert for high latency. | The team writes runbooks for every alert. | 2/40 | 8 | absent | 3 | 2 | 3 |
+| Merge this PR. | Code review requires one approval before merge. | 1/40 | 2 | absent | 1 | 1 | 1 |
+
+<TableNote>Numbers are the position the rule came back at. A dash means the rule was in that system's store and the search did not return it. `absent` means it never entered the store. Caps differ and matter: Mem0 20, LangMem and AgentCore 10, Letta 5, so Letta cannot return a rule ranked below fifth however good its retrieval is. Figures are run 1; the only value that moves across runs is Graphiti's on the duplicate-charges row, at 8, 10 and 9.</TableNote>
+
+
+Read the rank column against the rest and the gradient is clean. Rules at 1, 2, 3 and 5 come back nearly everywhere. Rules at 19, 25 and 37 come back rarely or not at all. For Mem0, LangMem and Letta there are no exceptions in either direction.
+
+No system here is malfunctioning. Mem0, LangMem and Letta all embed with `bge-m3`, the same model that produced the rank column, so their output largely follows it. Letta follows it exactly, returning every rule it returns at the rank the column gives. Mem0 and LangMem drift a few places, and not always upward: the rule ranked 5th comes back 9th in Mem0, and the one ranked 7th also comes back 9th. Layering keyword and entity matching on top of embeddings moved two targets further from the model, not closer.
+
+### Two systems break the pattern, for two different reasons
+
+**AgentCore recovers rules the others miss.** It returned the rule on eight of the nine probes with a cap of ten, where Mem0 managed seven with a cap of twenty. Its ordering is inverted in places, and reproducibly so: across all three runs a rule ranked 25th came back second or third, one ranked 19th came back second, and one ranked 2nd came back eighth or ninth. Part of that is the different embedder. Part may be the duplication I criticised earlier, since three strategies rewriting the same claim give a query three surfaces to match, and I cannot separate the two. What none of it buys is silence. AgentCore still returns its full ten on every ordinary turn, in every run.
+
+**Graphiti's eight `absent` results are not retrieval failures.** Those facts never became edges. Only one of the nine targets survived extraction because it was already shaped like two entities and a relation. The default extractor did not convert the standalone rules into that form. This complicates the cross-encoder result: it suppresses irrelevant results, but it also cannot retrieve rules that Graphiti never stored. Both cases produce an empty result for different reasons.
+
+### The obvious fix, and why it is not one
+
+Every rule that went missing sat below somebody's cap: the secrets rule at 37, the migrations rule at 25, the type-hints rule at 19. So raise the cap and let more through. Measured on Mem0, against its 44-row store:
+
+| Cap | Useful rules found | Rows returned on the retry turn | What it means |
+| --- | --- | --- | --- |
+| 5 | 3 of 9 | 5 | Six of the nine rules never reach the model. |
+| 20 | 7 of 9 | 20 | Mem0's default. Two still missing. |
+| 40 | 9 of 9 | 40 | Every rule recovered, and the whole store returned on a turn that needed none. |
+| 44 | 9 of 9 | 44 | Nothing left to find. Four more rows of noise. |
+
+<TableNote>Measured on Mem0 only. The retry turn is `Bump the retry count to 3.`, where the correct number of rows is none. Recovering every useful rule requires returning the entire store on that turn.</TableNote>
+
+
+There is no middle setting that gets both. The cap is not a tuning knob, it is a trade between two failures.
+
+## Relevance is not utility
+
+Here is the general form of what those two sections measured.
+
+> Memory systems often retrieve a fact when asked directly, miss it when it matters indirectly, and return related facts that do not help. AgentCore improves indirect recall, but still fills its result quota on ordinary turns, so it does not solve the usefulness decision.
+
+A single similarity score is being used to judge both topical similarity and expected usefulness.
+
+**Is this record relevant to the query?** That is the normal information-retrieval question. A dense model, BM25, or a hybrid of both compares the query with a memory record and asks whether they are about related things.
+
+```
+"Review the deployment checklist"
+"Priya owns the deployment checklist"
+```
+
+Relevant, in that narrow topical sense.
+
+**Will this record help answer the query?** That is the decision the application needs, and it is counterfactual: would the answer become materially better if this memory were present? The ownership memory is related to a request to review a checklist and does not help perform the review. Injecting it only distracts the model.
+
+The inverse holds as well. Two texts can be far apart in wording and the memory should still change the answer, because a fact about the world connects them. The clearest illustration of this belongs to the InMind paper rather than to me:
+
+```
+"I am allergic to tree nuts"
+"Can you suggest a macaron recipe?"
+```
+
+Macarons commonly contain almonds. A similarity score does not reliably make that connection, and it makes its decision before the model can use world knowledge to interpret the memory.
+
+So a scalar similarity gate is being asked to separate three cases it cannot reliably tell apart:
+
+| Relationship | Correct action |
+| --- | --- |
+| Related and useful | Inject |
+| Related but unhelpful | Suppress |
+| Not obviously related but consequential | Inject |
+
+The experiments measure both failure modes. On the retry-count turn, every returned row was topically plausible against a store of the user's software systems, engineering practices, and team, but no tested default suppressed the unhelpful results. In the nine indirect probes, useful rules fell below the result limit because their wording differed from the requests. The InMind paper illustrates the indirect-association failure with the tree-nut example, while this experiment uses the Stripe API-key request.
+
+### The same failure in the published work
+
+Nine probes on one synthetic store is a small sample. The published work finds the same pattern at scale.
+
+- **[Keep It InMind](https://huggingface.co/papers/2607.24368)** asked the same questions two ways. Give the model the memory it needs and it gets 84.0% right. Ask a memory system to find that memory first and the best one finds it 14.4% of the time. The model was never the problem. Finding the memory was.
+- **[Mem2ActBench](https://aclanthology.org/2026.acl-long.370.pdf)** ran the same comparison on task completion and found the same shape: 30.7 F1 with the best passive hybrid retriever, and 53.8 F1 when the model received the oracle memories.
+- **[MemReranker](https://arxiv.org/abs/2605.06132)** finds that "relevance scores are miscalibrated, making threshold-based filtering difficult". That is the threshold sweep above, at scale.
+- **[From Recall to Forgetting](https://arxiv.org/abs/2604.20006)** finds memory agents repeatedly reusing facts that have since been superseded, which is the update turn a few sections up, played out over long histories.
+
+## Benchmarks do not penalize unnecessary retrieved context
+
+LoCoMo is the most commonly reported benchmark across these systems, and several publish LongMemEval too. Around a fifth of LoCoMo's questions are adversarial, written to be unanswerable, and abstention is one of the five abilities LongMemEval was built to test.
+
+What they score is whether the right evidence was found and whether the answer was right. Neither penalises what arrives alongside it. A system returning the right row plus nineteen others scores exactly like one returning the right row alone, so a team tuning for these leaderboards gains nothing by making the second one happen. That is the likeliest reason every default in this essay ships permissive: on the only scoreboard anyone quotes, permissive costs nothing.
+
+And every item in both is a question. `Bump the retry count to 3.` is not a question. It has no evidence set, no correct answer, and nothing either benchmark knows how to score. So the twenty rows Mem0 returns there cost nothing on any leaderboard. They are paid for somewhere else: in the token bill, on every turn like this one, and in whatever nineteen unwanted rows do to the model's attention, which is the part nobody here has measured.
+
+## If you need memory anyway
+
+Manthan Gupta [argues](https://manthanguptaa.in/posts/memory_is_a_mistake/) that memory is a tax most products have not earned the right to pay, and on the evidence here that is the right default.
+
+For the products that do need it, the families in this essay sit on one axis. At one end, prompt profiles and Letta's always-on block put stored facts into every turn with no retrieval step at all, so there is nothing to tune when the wrong thing arrives. At the other, tool-only setups reach the model only if it asks, and the failure inverts: it does not ask, and the rule that would have helped never arrives. Hermes sits in between, capping the always-on slice and making the agent consolidate to stay inside it.
+
+No position on that axis is free, and none of them answers the prior question: should this turn get any stored context at all? Graphiti's relevance-scored ranking comes closest, declining on both turns that warranted nothing, though it does that with a better query-candidate relevance signal rather than by asking whether a memory would help.
+
+## Reproducing this
+
+<LinkPreview href="https://github.com/adimyth/agent-memory-experiments" title="adimyth/agent-memory-experiments" description="Runners, raw results, and reproduction steps for every experiment in this essay." />
+
+I welcome corrections, alternative readings, and replications that challenge these results. The repository contains the transcript, raw dumps, and scripts behind the tables; if you spot an error or a setting that changes a result, please [open an issue](https://github.com/adimyth/agent-memory-experiments/issues).
+
+## What I am building
+
+I am building Retold around that missing decision.
+
+<LinkPreview href="https://github.com/adimyth/retold" title="adimyth/retold" description="A local, provider-neutral memory layer for AI agents. It decides whether a turn needs memory before ranking, and admits a record only if it would change the answer." />
+
+Retold first asks whether the turn lacks user-specific information, using a content-free inventory of the kinds of facts the store holds. It retrieves for those gaps, drafts the answer without conditional memory, and admits a record only when that record would improve the draft.
+
+On blind, held-out scenarios, the supported configuration injected conditional memory on no more than 1 in 20 ordinary turns while recovering the needed stored fact in at least 9 of 10 explicit memory questions. On comparable ordinary turns, all five systems tested above returned their full configured quota. These results come from a separate held-out evaluation and are not a head-to-head comparison with the five default configurations above. They are controlled offline runs rather than production measurements, and what they show is narrow: high recall does not require putting memory into every answer.
+
+The code, scenarios, and raw runs are public. Try them against your system. If you find a case that breaks the result, or a better way to make the decision, I would like to hear from you.

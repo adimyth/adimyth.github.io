@@ -112,13 +112,13 @@
 
 .prose-essay {
   font-family: var(--font-source-serif), Georgia, serif;
-  font-size: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
-  line-height: 1.75;
+  font-size: 1.25rem;
+  line-height: 1.6;
   color: var(--ink);
 }
 
 .prose-essay p {
-  margin-bottom: 1.7rem;
+  margin-bottom: 1.25rem;
 }
 
 .prose-essay h2 {
@@ -495,6 +495,8 @@
 
 .prose-essay .essay-table-scroll {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 2rem 0 0.7rem;
   border: 1px solid var(--line-strong);
   border-radius: 0.75rem;
@@ -548,6 +550,19 @@
 .prose-essay .wide-table td:first-child,
 .prose-essay .wide-table th:first-child {
   min-width: 8rem;
+}
+
+/* inline code defaults to nowrap, which lets a single token set a column's
+   minimum width and push the table past the viewport on narrow screens */
+.prose-essay td,
+.prose-essay th {
+  overflow-wrap: break-word;
+}
+
+.prose-essay td code,
+.prose-essay th code {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .prose-essay thead {
