@@ -27,10 +27,10 @@ export const profile = {
 
 export const recentProjects = [
   {
-    name: "Memory Weave",
+    name: "Retold",
     description:
-      "A local memory layer for AI agents: evidenced records, hybrid retrieval, and a gate that can return empty so weak hits stay out of the prompt.",
-    url: "https://github.com/adimyth/memory-weave",
+      "A local, provider-neutral memory layer for AI agents, with evidenced records, hybrid retrieval, and a usefulness judge that admits a record only if it would change the answer.",
+    url: "https://github.com/adimyth/retold",
   },
   {
     name: "LLM Inference Experiments",
