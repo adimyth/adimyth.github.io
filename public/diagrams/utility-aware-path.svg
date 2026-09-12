@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 816" width="640" height="816" role="img" aria-labelledby="retold-path-title retold-path-desc">
+  <title id="retold-path-title">How Retold decides whether to use memory</title>
+  <desc id="retold-path-desc">The host writes a draft with no stored memory. Retold's planner then asks whether stored context is needed, without reading the store. If it is, retrieval searches this user's records and the judge asks whether they would change the draft already written. Only then does a second generation revise the answer. A no from either decision keeps the original draft. Both routes end at the same served answer.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b6460"/>
+    </marker>
+    <style>
+      .band { fill: #fbfaf7; stroke: #d9d4cc; stroke-width: 1.1; }
+      .box { fill: #f4f1ea; stroke: #a39b90; stroke-width: 1.25; }
+      .decision { fill: #edf4f2; stroke: #2f7375; stroke-width: 1.5; }
+      .revision { fill: #f7ede8; stroke: #b65c45; stroke-width: 1.5; }
+      .fallback { fill: #f9f7f3; stroke: #a39b90; stroke-width: 1.25; }
+      .chip { fill: #ffffff; stroke: #c9c2b8; stroke-width: 1.1; }
+      .name { fill: #857c73; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-anchor: middle; dominant-baseline: middle; }
+      .label { fill: #111111; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .sub { fill: #4f4945; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; text-anchor: middle; dominant-baseline: middle; }
+      .edge { fill: #3f3a36; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .zone { fill: #6b6460; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-anchor: start; dominant-baseline: middle; }
+      .line { stroke: #6b6460; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+      .plain { stroke: #6b6460; stroke-width: 1.5; fill: none; }
+    </style>
+  </defs>
+
+  <rect class="band" x="44" y="10" width="322" height="198" rx="14"/>
+  <text class="zone" x="60" y="28">HOST</text>
+
+  <rect class="box" x="60" y="40" width="290" height="52" rx="9"/>
+  <text class="label" x="205" y="60">User turn</text>
+  <text class="sub" x="205" y="77">plus public context</text>
+
+  <line class="line" x1="205" y1="92" x2="205" y2="124"/>
+
+  <rect class="box" x="60" y="124" width="290" height="70" rx="9"/>
+  <text class="name" x="205" y="140">SERVING MODEL</text>
+  <text class="label" x="205" y="161">Draft an answer</text>
+  <text class="sub" x="205" y="179">without stored memory</text>
+
+  <line class="line" x1="205" y1="208" x2="205" y2="272"/>
+
+  <rect class="band" x="44" y="242" width="322" height="462" rx="14"/>
+  <text class="zone" x="60" y="260">RETOLD</text>
+
+  <rect class="decision" x="60" y="272" width="290" height="70" rx="9"/>
+  <text class="name" x="205" y="288">PLANNER</text>
+  <text class="label" x="205" y="309">Is stored context needed?</text>
+  <text class="sub" x="205" y="327">asked without reading the store</text>
+
+  <path class="line" d="M350 307 H508 V612"/>
+  <rect class="chip" x="372" y="278" width="40" height="23" rx="5"/>
+  <text class="edge" x="392" y="290">No</text>
+
+  <line class="line" x1="205" y1="342" x2="205" y2="382"/>
+  <rect class="chip" x="217" y="350" width="44" height="23" rx="5"/>
+  <text class="edge" x="239" y="362">Yes</text>
+
+  <rect class="box" x="60" y="382" width="290" height="70" rx="9"/>
+  <text class="name" x="205" y="398">RETRIEVAL</text>
+  <text class="label" x="205" y="419">Search for the missing context</text>
+  <text class="sub" x="205" y="437">this user's records only</text>
+
+  <line class="line" x1="205" y1="452" x2="205" y2="492"/>
+
+  <rect class="decision" x="60" y="492" width="290" height="88" rx="9"/>
+  <text class="name" x="205" y="508">JUDGE</text>
+  <text class="label" x="205" y="529">Would the records change</text>
+  <text class="label" x="205" y="547">the answer already drafted?</text>
+  <text class="sub" x="205" y="565">all candidates judged together</text>
+
+  <path class="plain" d="M350 536 H508"/>
+  <rect class="chip" x="372" y="507" width="40" height="23" rx="5"/>
+  <text class="edge" x="392" y="519">No</text>
+
+  <line class="line" x1="205" y1="580" x2="205" y2="620"/>
+  <rect class="chip" x="217" y="588" width="44" height="23" rx="5"/>
+  <text class="edge" x="239" y="600">Yes</text>
+
+  <rect class="revision" x="60" y="620" width="290" height="70" rx="9"/>
+  <text class="name" x="205" y="636">SECOND GENERATION</text>
+  <text class="label" x="205" y="657">Revise the answer once</text>
+  <text class="sub" x="205" y="675">using the admitted records</text>
+
+  <rect class="fallback" x="392" y="620" width="232" height="70" rx="9"/>
+  <text class="name" x="508" y="636">FALLBACK</text>
+  <text class="label" x="508" y="657">Keep the original draft</text>
+  <text class="sub" x="508" y="675">nothing from memory is used</text>
+
+  <path class="line" d="M205 690 V730 H356 V752"/>
+  <path class="plain" d="M508 690 V730 H356"/>
+
+  <rect class="box" x="236" y="756" width="240" height="48" rx="11"/>
+  <text class="label" x="356" y="780">Serve the answer</text>
+</svg>

@@ -1,0 +1,345 @@
+---
+title: "Building Retold: Agent Memory That Decides Before It Retrieves"
+description: "My last essay measured five agent memory systems returning records on turns that needed none. Retold decides before it searches. Four things I learned building it, the measurement behind each, and what it costs to run."
+date: "2026-09-12"
+readTime: "16 min read"
+featured: true
+draft: true
+---
+
+> A memory system should stay quiet on the turns that need nothing, and surface the right records on the turns where they matter.
+
+## TL;DR
+
+My last essay, [Related Is Not Useful](/essays/agent-memory-systems-primer), measured five agent memory systems at their documented defaults and found the same design in all of them. They rank stored records by how closely the wording matches the question, so they return their full quota on turns that need nothing and miss a saved preference whose wording differs from the request.
+
+That essay ended on a question it did not answer.
+
+<Callout kind="decision" title="The question this essay answers">
+**Should this turn get any stored context at all?**
+</Callout>
+
+I have been building Retold as an answer to it, and it is public now under MIT.
+
+Retold begins each session with a small profile of saved preferences, such as the user's preferred answer style. In parallel, a planner asks whether the answer needs a specific private fact. Only then does Retold search. A judge compares the records it finds with the draft and admits only the records that would make the answer better. Building that path taught me four things.
+
+**A saved preference can shape a generic answer without appearing in the question.** In my fixture, the user asks for concise technical answers with a short example. Later they ask, `What is dependency injection?` The planner should return no gap because the question needs no private fact. The answer should still respect the user's preferred style. Retold puts verified preferences that apply across answers into a small profile at session start, so the draft gets them without a search.
+
+**The planner needs a safe clue that memory might help.** Give it record text and private facts reach a model before retrieval has earned that access. Give it no clue and it misses questions such as `What Node version is staging on?`, which contain no “my” or “our” but need a stored version pin. Retold gives the planner only a list of available fact kinds, such as “runtime and version constraints.” The records stay hidden until it asks a specific question.
+
+**A relevance filter helps only when it makes the final decision.** In [the last essay](/essays/agent-memory-systems-primer#can-thresholds-fix-this), Graphiti's cross-encoder ran immediately before the model. It improved the result. In Retold, the judge makes that final decision by comparing the candidate set with the draft. Putting the cross-encoder before the judge removed correct records before the judge could assess them and pushed recall below the 90 percent gate. It ships disabled.
+
+**A low memory-injection rate can hide a broken path.** An early run put memory into almost no ordinary answers. That looked like success until I found that the planner had returned no gaps on every one of those turns. Retrieval and judgment had never run. Retold now logs whether the planner declined, retrieval found nothing, the judge withheld the records, or a policy failure or budget stopped the path.
+
+> On 40 turns that needed nothing from memory, the system stayed quiet on 39. On 20 turns that asked for something the user had stored, it produced the right record 19 times. Nothing unsafe reached an answer. Those two results normally trade against each other, because a system tuned to stay quiet misses what you told it, and a system tuned to catch everything brings up your private business on turns where nobody asked.
+
+<LinkPreview href="https://github.com/adimyth/retold" title="adimyth/retold" description="A framework-neutral long-term memory layer for AI agents. MIT, Python 3.12 and 3.13, one SQLite file, and a retrieval path that is allowed to return nothing." />
+
+---
+
+## The system you would build
+
+The obvious fix is to make the system pickier about what it returns. Every stored record comes back with a score for how closely its wording matches the question, so you raise the score a record has to reach before it is allowed through. In [the last essay](/essays/agent-memory-systems-primer#can-thresholds-fix-this) I tested that setting across its whole range, from letting everything through to letting almost nothing through. No value worked.
+
+The reason is that one number is being asked to do two opposite jobs. Raise it far enough to silence the questions that should get nothing back, and you also cut records from the questions that should get something. In that test the score had to reach 0.65 before a question needing no memory stopped returning rows, and at that setting a question the store could answer returned nothing either.
+
+If a number cannot make this decision, a model might. That is the next idea, and it is a good one. Put a model in front of the search. Ask it whether the turn needs anything the store might hold. Search only when it says yes. Then, before any record reaches the answer, ask a second model whether that record would change what the assistant was going to say. Three decisions instead of one score.
+
+This is the approach Retold takes.
+
+![Retold's decision path: the serving model drafts an answer, the planner asks whether stored context is needed, retrieval searches only if it says yes, the judge keeps only records that would change the draft, and a second generation revises once. A no from either decision falls back to the original draft](/diagrams/utility-aware-path.svg)
+
+Each block in that diagram has a name, and the rest of this essay uses those names.
+
+- **Serving model.** The host writes a draft with nothing from the store in it.
+- **Planner.** It asks whether this turn needs anything stored, and it asks without reading the store.
+- **Retrieval.** Only if the planner says yes does Retold search, and only this user's records.
+- **Judge.** It reads the draft and every candidate record together, and keeps the ones that would change the answer.
+- **Second generation.** If anything survives the judge, the answer is written once more with those records in hand.
+- **Fallback.** A no from either the planner or the judge serves the original draft untouched.
+
+The store for the rest of this essay is a fourteen-turn conversation I use as a fixture. Over seven turns the user states the things worth keeping. Five of them matter here:
+
+- Keep answers concise and technical, with a short example.
+- Use Python for code examples unless another language is requested.
+- Write Python with camelCase function names, a dataclass when defining a class, a docstring on every function, and type annotations on inputs and outputs.
+- The working time zone is Asia/Kolkata.
+- Priya Nair owns the deployment checklist.
+
+Then the conversation asks ordinary questions. Three of them carry the whole argument:
+
+- `How do I parse this configuration file?` Nothing here names a language, so the stored Python preference decides what the example is written in.
+- `Show me a small Python example that parses this configuration file.` The language is already in the request, so the Python preference adds nothing to this turn. The style preference is what should shape it.
+- `What is dependency injection?` Nothing the store had to look up should reach this answer. A saved preference about answer style may still shape how it reads.
+
+The second one is worth pausing on. A preference whose whole content is "use Python" cannot improve an answer to a question that already says Python. A preference about how to write the Python can, and no request will ever restate it. That is the difference between a preference that is merely stored and one that is doing work.
+
+## The planner never asks for the memory you use most
+
+Start with the search on its own, with no planner and no judge in front of it. This is the failure everyone expects, and it is the one the last essay was about.
+
+I built the store with promotion switched off, so every preference sits in the conditional store like any other record, and used each turn verbatim as the search query. The local embedder does the ranking, so this runs without a hosted model and returns the same thing every time.
+
+| Turn | Should return | Records returned |
+| --- | --- | --- |
+| How do I parse this configuration file? | the Python and style preferences | 6 of 7, including both |
+| Show me a small Python example that parses this configuration file. | the style preference | 6 of 7, including it |
+| What time zone should you use when suggesting a meeting for me? | the time zone | 6 of 7, including it |
+| Should I use tabs or spaces in Python? | nothing | 6 of 7 |
+| How often should a deployment checklist be reviewed? | nothing | 6 of 7 |
+| What is a clear way to format a trade-off in a design note? | nothing | 6 of 7 |
+| What are common mistakes when naming a Python virtual environment? | nothing | 6 of 7 |
+
+<TableNote>Search alone, 12 September 2026, promotion off so nothing is ambient, each turn used verbatim as the query. Six of the seven stored records come back on every turn, including all four that should receive nothing. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `How do I parse this configuration file?`, which needs two records, tops out at 0.016.</TableNote>
+
+Search does not miss these records. It cannot tell the turns apart at all. It answers the question "what is related to this sentence?" the same way whether the sentence needs memory or not, which is the finding the last essay reached from the other direction: on a larger store the same ranking buries the record that matters, and on a small one it returns almost everything.
+
+That is the correct reason to build something. I assumed the planner and the judge would fix it. They do not, and the reason is not a bug.
+
+On 12 September I ran the same conversation end to end through the shipped orchestrator with the supported bundle: `gpt-4o` planning gaps, `gpt-5.4` judging admission. Both code-example turns came back the same way, in the shadow pass and again when serving:
+
+```text
+turn:        How do I parse this configuration file?
+disposition: baseline_no_gaps
+gaps:        0
+candidates:  0
+admitted:    0
+profile:     3 records
+
+turn:        Show me a small Python example that parses this configuration file.
+disposition: baseline_no_gaps
+gaps:        0
+candidates:  0
+admitted:    0
+profile:     3 records
+```
+
+Zero gaps on both. The planner did not ask for anything, so nothing was searched and nothing was judged.
+
+Read the turns again and you will agree with the planner. Neither is about the user. They are questions about parsing configuration files. A planner that fired here would fire on almost everything, which is the behaviour the last essay spent 8,000 words criticising.
+
+The trouble is that both preferences still apply. They apply to this turn, the next one, and every code example the assistant will ever write for this person. Neither ever comes up as a topic. Nobody says "how should you answer me?", so a test that asks "does this turn need stored memory?" will never return yes for the class of memory that applies on the most turns.
+
+***A usefulness test evaluated per turn is blind by construction to the memories that are useful on every turn.***
+
+Retold's answer is to stop asking about them. Every record is one of two kinds, and the difference runs through the rest of this essay. A **conditional** record is a fact, a decision, or an event, and it reaches an answer only by surviving the search and then the judge. That is the path in the diagram above. An **ambient** record is a saved preference about how to answer, and it takes no path at all. The host assembles a small profile of them once at the start of the session, at most eight records and 400 tokens, and it sits in front of the model on every turn. That is the `profile: 3 records` in the traces above. Both preferences were already in the draft before the planner finished thinking.
+
+That is a design claim, so here is the measurement behind it. On `How do I parse this configuration file?`, with the profile in front of the model, the answer came back as Python:
+
+```python
+def parseConfig(filePath: str) -> dict[str, Any]:
+    """Parse a JSON configuration file."""
+```
+
+A camelCase function name, a docstring, and annotated inputs and outputs. The language came from memory too: the same turn with no memory at all produced no code and asked which language the user was working in.
+
+Then I changed one thing. I demoted the style preference back to conditional and left everything else alone: same store, same record text, same category, same turn, same models. Ambient had been the system's own decision rather than a fixture setting, so this is the counterfactual rather than the default.
+
+| | Style preference ambient | Style preference conditional |
+| --- | --- | --- |
+| In the ambient profile | yes | no |
+| Categories the planner was shown | 3, no preferences among them | 4, with "response preferences" added |
+| Gaps the planner requested | 0 | 0 |
+| Records retrieved | none | none |
+| Style in the answer | camelCase, docstring, annotations | none of them |
+
+<TableNote>Both runs on 12 September 2026, same bundle, same store. The only difference is the activation mode of one record. The answers below each column are single samples; the gap and candidate counts come from the decision log.</TableNote>
+
+The right-hand column is the same system with the same record filed one way instead of the other, and it is the whole argument in one table. The planner was told this user has stored response preferences, on a turn about parsing a configuration file, and still asked for nothing. The record was never a candidate, so retrieval and the judge never got the chance to fail. The answer came back as a plain `json.load` snippet with none of the style in it.
+
+None of this means conditional retrieval is weak. On the fifth blind split the planner fired on 18 of 18 turns that needed memory, explicit stored-fact recall was 10 of 10 and implicit recall 7 of 8, and answers on memory-needed turns went from 1 of 19 correct without memory to 15 of 19 with it. Conditional retrieval works for facts a turn needs. It cannot work for a preference no turn ever asks for, which is why that preference must not be conditional.
+
+A record in every answer is a dangerous thing to hand a model, so promotion to ambient is not a ranking outcome. It is a state change with rules:
+
+- The host finds the claim in the user's own turn in the stored transcript. An assistant turn never counts, because a preference the assistant proposed is not a preference the user stated.
+- A deterministic rule reads the sentence form. "Use Python for code examples unless another language is requested" carries an override clause, which makes it a global default, which promotes. "When writing SQL, use snake_case" is scoped and stays conditional. "Just for this sprint, skip the type hints" is temporary and never promotes.
+- Only four categories are eligible: answer style, response language, accessibility, and the language of code examples. A classifier proposes a category and cannot extend the list.
+- Self-reported confidence can send an unclear case to a review queue. It cannot promote anything.
+- Ambiguity, a policy timeout, or a safety flag creates a review item that a person resolves through `retold reviews resolve`.
+
+I froze that rule on 7 September and wrote the promotion test set afterwards, before running anything against it. Passing requires two independent store builds to promote exactly the same set, with nothing unsafe promoted. The code-example preference appears across six committed scenario files in four languages, Python, Go, Kotlin and Rust, so the correct answer changes from one split to the next.
+
+The ambient profile and the conditional gate look like two features. They are two halves of one decision, and a system with only the gate will be confidently wrong about the user on most of its turns.
+
+## A planner that can read the store has already leaked it
+
+The planner has to decide whether a turn needs private facts. What should it know about the facts?
+
+Show it the records and the planner call is itself the leak. Every scope check, grant, and isolation test upstream of it stops mattering, because the sentences reach a model on turns that had no business retrieving anything.
+
+Show it nothing and it falls back on grammar. It fires when a turn says "my", "our", or "we", and it skips the ones that do not. `What Node version is staging on?` contains no possessive pronoun and no first-person anything. It is also unanswerable without the store. That gap showed up on the tuning split and it is the reason the third option exists.
+
+Retold gives the planner a table of contents with no pages:
+
+```text
+- people and their roles
+- infrastructure and environments
+- runtime and version constraints
+- limits and quotas
+- document and repository locations
+```
+
+The planner reads "runtime and version constraints", concludes that a question about the staging Node version might be answerable from this user's store, and emits a gap query. It has not learned that Node is pinned to 20. It has learned that version pins are a kind of thing this user records.
+
+Nobody writes that list at turn time. When a record is written, a classifier assigns it one of eleven retrieval categories. The store keeps the label. At turn time `inventory()` asks for the distinct categories across the principal's readable conditional records and maps them to those labels. Record text never enters the list, and changing the taxonomy changes the bundle hash, which invalidates the fitness result.
+
+Several systems in the last essay expose something that resembles a catalog. None of them is content-free:
+
+| System | What the model sees before reading a memory | What that reveals |
+| --- | --- | --- |
+| Letta | The file tree under `system/`, in the prompt every turn | File names. `Rohan.md` already tells you there is a Rohan |
+| Claude Code, Hermes, OpenClaw | A hot slice of Markdown, plus a listable memory directory | File names and whatever sits in the slice |
+| LangMem | Namespace paths such as `users/aditya/prefs` | Paths when listed, values on search |
+| ChatGPT | The synthesized profile paragraph itself | The facts, not a catalog of them |
+| Mem0, Zep, AgentCore | Nothing catalog-like | The hits, once you search |
+
+<TableNote>Documented mechanism, not a performance comparison. A directory listing is a table of contents of artifacts. The inventory is a table of contents of fact kinds.</TableNote>
+
+## Relevance was never going to be the last word
+
+The judge sees the user's message, the ambient profile, the draft the model already wrote, and the whole bounded candidate set, capped at eight. It gives every candidate one of six verdicts and admits only two of them.
+
+The draft is what makes redundancy measurable. A record can concern the request, be perfectly accurate, and still change nothing, because the answer already covers it. Without a draft in front of it a judge has nothing to be redundant against, and it falls back on topical similarity, which is the thing this whole essay is trying to get away from.
+
+The set matters for the opposite reason. Two records can each look thin and together complete an answer. Scoring candidates one at a time drops both. `jointly_helpful` exists for that case, and it only means anything because the judge sees the candidates at once.
+
+Which brings me to a result that contradicts the last essay, or looks like it does.
+
+That essay found Graphiti's cross-encoder was the only tested setting that did both jobs: it returned nothing on the retry instruction and the dog-name question, and kept the one row that answered the March question. A cross-encoder reads the request and a candidate together and scores that pair, so its score means something on its own, unlike the position-derived number RRF produces.
+
+I built the same thing here, in both places it could sit: after the score cut-offs the search already applies, and instead of them. It cut weak candidates by roughly an order of magnitude, and on both blind splits it lost explicit recall below the 90 percent gate. It ships disabled.
+
+Both results are right, and the reason is what the filter sits above. In Graphiti's default configuration, RRF fusion is the last decision before results reach the model, and a position-derived score is a poor last decision. Adding a real relevance signal there is a clear gain. In Retold the judge is the last decision, and it already rejects weak candidates by comparing them with the draft. So the cross-encoder's only remaining power is over what the judge is allowed to see, and every expected record it cut was a record the judge never got the chance to admit.
+
+***A relevance filter is worth its recall cost only when it is the last decision in the chain.***
+
+## I could not tell a quiet system from a broken one
+
+An early configuration injected conditional memory on almost no ordinary turns. I had built something that declines, which was the entire point, and the number said so.
+
+The number was hiding a hole. Every one of those turns was planner silence. The planner asked for nothing, so retrieval never ran, so the judge was never called on an ordinary turn at all. Its precision on exactly the population I cared about was unmeasured, and the aggregate looked identical to the result I would have got from a judge that was doing its job.
+
+From outside, a turn where no memory was used tells you nothing. Six causes produce it:
+
+| Disposition | What happened |
+| --- | --- |
+| `baseline_no_gaps` | The planner asked for nothing |
+| `baseline_no_candidates` | It asked, and retrieval found nothing |
+| `baseline_empty_admission` | Candidates reached the judge and none were admitted |
+| `baseline_policy_failure` | A stage broke, timed out, or returned unparseable output |
+| `baseline_budget_exhausted` | The caller's latency budget cut the path short |
+| `admitted_not_applied` | Records were admitted with no time left to use them |
+
+The 8 September run produced four of those six plus `regenerated` and `shadow_would_regenerate`, because the harness drives the whole operating loop on purpose: refusal while the bundle is unapproved, shadow, fitness recording, serving, a budget withhold, and a kill switch. Every turn writes one row carrying its disposition, the gap queries, the candidate and admitted record ids, per-stage timings, the failure strings, and the bundle hash.
+
+`retold metrics` aggregates that log into stage counts, admission rates, latency, token cost, and the review backlog, per bundle and per window. Improving a stage you cannot see is guesswork, and the aggregate number that made me happy was the one I should have distrusted first.
+
+## What the evidence covers
+
+Start with what it does not cover, because that shapes how much the rest is worth.
+
+Every number below that involves the planner or the judge comes from scripted scenarios I wrote. I hid the expected records from the planner and the judge, fixed the configuration in advance, and ran each blind split once. A separate shadow run put the same scenarios through the real orchestrator with isolation asserted on every check. None of it is production traffic.
+
+One admission fell outside my original labels: the judge admitted the user's time-zone record on a scheduling query I had not marked as needing it. I sent that case to an independent reviewer model, blind, showing the turn and the records already required but not my label or the judge's reasoning. It came back helpful but optional. The original labels stayed as written, and precision is reported both ways.
+
+| Gate | Required | Fifth split | Fourth split |
+| --- | --- | --- | --- |
+| Ordinary turns receiving conditional memory | at most 5% | 1 of 20 | 0 of 20 |
+| Explicit stored-fact recall | at least 90% | 10 of 10 | 9 of 10 |
+| Implicit memory-needed recall | at least 75% | 7 of 8 | 6 of 7 |
+| Helpful precision among admitted records | at least 95% | 19 of 20 | 17 of 17 |
+| Unsafe admissions or promotions | zero | zero | zero |
+
+<TableNote>Under the blind labels alone, without the adjudication overlay, precision reads 18 of 20 and 16 of 17. The shadow run through the real orchestrator injected on 0 of 20 ordinary turns and admitted nothing unsafe.</TableNote>
+
+Retrieval latency is measured separately and does not depend on any of the above. Warm search runs at 23 ms p50 on a 1,000-record store with a real embedder, and 74 ms p50 at 50,000 records. Writes run at 26 ms p50, with a 471 ms tail when the write reaches the entailment judge.
+
+<Callout kind="caveat" title="This is not a head-to-head">
+The five systems in the last essay ran on a different store, with different scenarios, against different models. Retold ran on scenarios I wrote, and I also wrote Retold. Comparing the 1-in-40 injection figure here with the full-quota results there would compare two experiments that share no fixture, no probe set, and no judge. A fair comparison needs one store, one probe set, and one scoring pass, applied to every system including this one. I have not run it, and I would rather say so than publish the version that flatters me.
+</Callout>
+
+## The bill
+
+The last essay charged the five systems for returning twenty rows on a turn that needed none. Retold's path costs something different, and it costs it in a place the reader should be able to see.
+
+A planner call runs on every turn. A judge call runs whenever the planner names a gap. A second generation runs whenever the judge admits something. On the eight-candidate pools the splits used, the planner takes about a second and the judge 2 to 5 seconds at p95. On the reference host run, the gap turns added 717 ms at p50 over what the draft already cost, and the planner spent 501 prompt tokens and 20 completion tokens on the turn in the measured window.
+
+Three things keep that bounded:
+
+- Planning runs concurrently with the draft, so a turn where the planner returns nothing pays only for whatever part of the call outlasts the draft.
+- `latency_budget_ms` is a per-request deadline the caller sets per turn, measured from the moment the draft finishes. A budget of zero returns the draft plus the ambient profile and runs no policy at all, which is a chat surface and a voice surface sharing one deployment rather than two.
+- Before regenerating, the orchestrator compares the remaining budget with this turn's own draft latency, which is the best estimate available of what a second generation will cost. If the budget is smaller, the admitted records are not applied and the row records why.
+
+Query rewriting is the negative result on the same axis. I built it, and on the blind splits it changed 2 to 5 of about 39 searches while costing 1.7 to 1.9 seconds for every search it touched, because the planner's queries are already standalone questions. It ships disabled, like the cross-encoder, with the measurement written down next to the flag.
+
+Here is the part I cannot resolve. On an ordinary turn you now pay for a planner call to find out you needed nothing. Whether that beats paying for twenty unwanted rows depends on your token prices, your latency budget, and what nineteen irrelevant records do to your model's attention, which nobody in the last essay measured either. I have a rule for when to revisit it: distilling the hosted judge becomes worth doing once one serving-model family has 10,000 production turns carrying both a judge verdict and a deletion-test label, and hosted admission is over either 750 ms p95 or two dollars per 1,000 candidate-bearing turns across a rolling week. Both conditions, not either.
+
+## Running it without trusting it
+
+You should not trust this yet. Here is the machinery for not trusting it.
+
+The planner and the judge are off unless you turn them on, and `supported_bundle()` hands you a configuration in shadow mode. In shadow the orchestrator plans, retrieves, judges, and writes the full decision row, and serves the draft regardless. You read your own decision log before anything reaches a user.
+
+Serving requires approval that Retold checks rather than assumes. A bundle is the planner model and prompt version, the judge model and prompt version, the classifier, the taxonomy, the inventory builder, the retrieval configuration, and the budgets. Hash that and you have identified a configuration. The orchestrator refuses to serve a bundle with no passing fitness result recorded in the store you are about to serve from. Change a prompt and the hash changes and the old result no longer covers you.
+
+One refusal is sharper than the rest. If your bundle declares a retrieval hash and you did not hand the orchestrator the retrieval configuration it would serve with, it will not serve. A hash nobody checked is worse than no hash, because it reads like an approval of whatever is in front of you. Shadow mode runs, logs a warning, and marks every decision row as unverified.
+
+Then the ordinary operational surface: per-stage kill switches that can only make the path safer, `retold metrics --rollback-check` for threshold breaches over a window, and a review queue with a backlog command that exits non-zero when it grows past your limits.
+
+One finding belongs here rather than in the architecture. Provider neutrality is about interfaces, not about safety. The planner role transferred to an 8B open-weight model running locally. The judge role did not. Other frontier judges matched the recall of the one I shipped and admitted a misleading or private record while doing it. The code will talk to any of them. The measurement says which one you may serve.
+
+## What is not done
+
+- No production traffic. Every number in this essay that involves the planner or the judge is offline, on scenarios I wrote. Start in shadow and read your own decisions before you serve any of them.
+- One SQLite file, one process. A Postgres-backed option is the next storage work for applications that cannot share a file.
+- `pip install retold` does not work yet. The PyPI trusted publisher does not exist, so installation goes through a GitHub release URL.
+- Background cross-session consolidation is specified and deliberately unbuilt. The conditions it has to meet before it ships are written down, and they include showing that background proposals beat session-end extraction on precision or recall.
+- The standard profile downloads about 2.8 GB of local models. The lite profile is about 640 MB and is the one the quick start uses.
+- Entities never merge automatically. A false merge leaks one person's facts into another's, so merging is an explicit operation with an audit event.
+
+## Try it, and try to break it
+
+Two commands. The first needs no API key.
+
+```bash
+python -m pip install "retold[local-models] @ https://github.com/adimyth/retold/releases/download/v1.2.1/retold-1.2.1-py3-none-any.whl"
+```
+
+```python
+from retold import Retold
+
+with Retold.open("memory.sqlite", profile="lite") as retold:
+    with retold.session(user_id="aditya") as memory:
+        memory.remember(
+            "I prefer concise answers.",
+            evidence="I prefer concise answers.",
+            attribute="answer_style",
+        )
+        print(memory.search("What kind of answers do I prefer?").text)
+```
+
+The result carries the reason it came back:
+
+```text
+Recalled 1 memory for "What kind of answers do I prefer?".
+
+[01a08...] semantic · confirmed · user_statement · event 2026-09-10 · scope agent:assistant/aditya
+I prefer concise answers.
+matched: dense 0.53 (rank 1), lexical 2/3 (rank 1); fused rank 1; passed dense 0.53 ≥ 0.32 (semantic)
+```
+
+`examples/utility_aware_quickstart.py` runs the decision itself with deterministic policies and real retrieval, so it produces the same two dispositions every time:
+
+```text
+question: Give me a code example that reads a JSON file.
+decision: regenerated
+memory used: 1
+
+question: What is dependency injection?
+decision: baseline_no_gaps
+memory used: 0
+```
+
+What I want is the case that breaks it. A turn where the planner should have asked and stayed quiet, a record the judge admitted that made your answer worse, a preference the promotion rule got wrong. The scenarios, the harnesses, and the policies are the same code the package ships, so a failure you find is a failure you can hand back to me.
+
+<LinkPreview href="https://github.com/adimyth/retold/issues" title="adimyth/retold issues" description="Corrections, replications, and cases that break the decision. The scenarios and harnesses are in the repository; the raw result directories are not, and the aggregates are recorded in the acceptance report." />
