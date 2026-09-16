@@ -68,8 +68,8 @@ The store for the rest of this essay is a fourteen-turn conversation I use as a 
 
 Then the conversation asks ordinary questions. Three of them carry the whole argument:
 
-- `How do I parse this configuration file?` Nothing here names a language, so the stored Python preference decides what the example is written in.
-- `Show me a small Python example that parses this configuration file.` The language is already in the request, so the Python preference adds nothing to this turn. The style preference is what should shape it.
+- `Write a prime number detector.` Nothing here names a language, so the stored Python preference decides what the example is written in.
+- `Write a small Python function that detects prime numbers.` The language is already in the request, so the Python preference adds nothing to this turn. The style preference is the only stored record that can change this answer.
 - `What is dependency injection?` Nothing the store had to look up should reach this answer. A saved preference about answer style may still shape how it reads.
 
 The second one is worth pausing on. A preference whose whole content is "use Python" cannot improve an answer to a question that already says Python. A preference about how to write the Python can, and no request will ever restate it. That is the difference between a preference that is merely stored and one that is doing work.
@@ -82,15 +82,15 @@ I built the store with promotion switched off, so every preference sits in the c
 
 | Turn | Should return | Records returned |
 | --- | --- | --- |
-| How do I parse this configuration file? | the Python and style preferences | 6 of 7, including both |
-| Show me a small Python example that parses this configuration file. | the style preference | 6 of 7, including it |
+| Write a prime number detector. | the Python and style preferences | 6 of 7, including both |
+| Write a small Python function that detects prime numbers. | the style preference | 6 of 7, including it |
 | What time zone should you use when suggesting a meeting for me? | the time zone | 6 of 7, including it |
 | Should I use tabs or spaces in Python? | nothing | 6 of 7 |
 | How often should a deployment checklist be reviewed? | nothing | 6 of 7 |
 | What is a clear way to format a trade-off in a design note? | nothing | 6 of 7 |
 | What are common mistakes when naming a Python virtual environment? | nothing | 6 of 7 |
 
-<TableNote>Search alone, 12 September 2026, promotion off so nothing is ambient, each turn used verbatim as the query. Six of the seven stored records come back on every turn, including all four that should receive nothing. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `How do I parse this configuration file?`, which needs two records, tops out at 0.016.</TableNote>
+<TableNote>Search alone, 12 September 2026, promotion off so nothing is ambient, each turn used verbatim as the query. Six of the seven stored records come back on every turn, including all four that should receive nothing. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `Write a prime number detector.`, which needs two records, tops out at 0.016.</TableNote>
 
 Search does not miss these records. It cannot tell the turns apart at all. It answers the question "what is related to this sentence?" the same way whether the sentence needs memory or not, which is the finding the last essay reached from the other direction: on a larger store the same ranking buries the record that matters, and on a small one it returns almost everything.
 
@@ -99,14 +99,14 @@ That is the correct reason to build something. I assumed the planner and the jud
 On 12 September I ran the same conversation end to end through the shipped orchestrator with the supported bundle: `gpt-4o` planning gaps, `gpt-5.4` judging admission. Both code-example turns came back the same way, in the shadow pass and again when serving:
 
 ```text
-turn:        How do I parse this configuration file?
+turn:        Write a prime number detector.
 disposition: baseline_no_gaps
 gaps:        0
 candidates:  0
 admitted:    0
 profile:     3 records
 
-turn:        Show me a small Python example that parses this configuration file.
+turn:        Write a small Python function that detects prime numbers.
 disposition: baseline_no_gaps
 gaps:        0
 candidates:  0
@@ -124,16 +124,23 @@ The trouble is that both preferences still apply. They apply to this turn, the n
 
 Retold's answer is to stop asking about them. Every record is one of two kinds, and the difference runs through the rest of this essay. A **conditional** record is a fact, a decision, or an event, and it reaches an answer only by surviving the search and then the judge. That is the path in the diagram above. An **ambient** record is a saved preference about how to answer, and it takes no path at all. The host assembles a small profile of them once at the start of the session, at most eight records and 400 tokens, and it sits in front of the model on every turn. That is the `profile: 3 records` in the traces above. Both preferences were already in the draft before the planner finished thinking.
 
-That is a design claim, so here is the measurement behind it. On `How do I parse this configuration file?`, with the profile in front of the model, the answer came back as Python:
+That is a design claim, so here is the measurement behind it. Both code turns ran twice, once with the style preference ambient and once with the same record demoted to conditional and nothing else changed: same store, same record text, same category, same models. Ambient was the system's own decision rather than a fixture setting, so the demotion is the counterfactual, not the default.
+
+With the preference ambient, both turns came back like this:
 
 ```python
-def parseConfig(filePath: str) -> dict[str, Any]:
-    """Parse a JSON configuration file."""
+def isPrime(number: int) -> bool:
+    """Return True if number is prime; otherwise, return False."""
 ```
 
-A camelCase function name, a docstring, and annotated inputs and outputs. The language came from memory too: the same turn with no memory at all produced no code and asked which language the user was working in.
+With it conditional, both came back like this:
 
-Then I changed one thing. I demoted the style preference back to conditional and left everything else alone: same store, same record text, same category, same turn, same models. Ambient had been the system's own decision rather than a fixture setting, so this is the counterfactual rather than the default.
+```python
+def is_prime(n: int) -> bool:
+    """Return True if n is a prime number."""
+```
+
+The docstring and the annotations appear in both, because a serving model writes those unprompted. They prove nothing. `isPrime` is the whole signal: no model writes camelCase function names in Python unless it has been told to, and PEP 8 says not to. That one clause is the difference between an answer shaped by memory and an answer that merely looks tidy.
 
 | | Style preference ambient | Style preference conditional |
 | --- | --- | --- |
@@ -141,11 +148,11 @@ Then I changed one thing. I demoted the style preference back to conditional and
 | Categories the planner was shown | 3, no preferences among them | 4, with "response preferences" added |
 | Gaps the planner requested | 0 | 0 |
 | Records retrieved | none | none |
-| Style in the answer | camelCase, docstring, annotations | none of them |
+| Function name in the answer | `isPrime` | `is_prime` |
 
 <TableNote>Both runs on 12 September 2026, same bundle, same store. The only difference is the activation mode of one record. The answers below each column are single samples; the gap and candidate counts come from the decision log.</TableNote>
 
-The right-hand column is the same system with the same record filed one way instead of the other, and it is the whole argument in one table. The planner was told this user has stored response preferences, on a turn about parsing a configuration file, and still asked for nothing. The record was never a candidate, so retrieval and the judge never got the chance to fail. The answer came back as a plain `json.load` snippet with none of the style in it.
+The right-hand column is the same system with the same record filed one way instead of the other, and it is the whole argument in one table. The planner was told this user has stored response preferences, on a turn asking for a Python function, and still asked for nothing. The record was never a candidate, so retrieval and the judge never got the chance to fail. The second turn is the sharper of the two: it already names Python, so the style record is the only thing in the store that could have changed the answer, and filing it conditional is enough to lose it.
 
 None of this means conditional retrieval is weak. On the fifth blind split the planner fired on 18 of 18 turns that needed memory, explicit stored-fact recall was 10 of 10 and implicit recall 7 of 8, and answers on memory-needed turns went from 1 of 19 correct without memory to 15 of 19 with it. Conditional retrieval works for facts a turn needs. It cannot work for a preference no turn ever asks for, which is why that preference must not be conditional.
 
