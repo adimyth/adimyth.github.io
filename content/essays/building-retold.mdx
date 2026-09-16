@@ -33,11 +33,13 @@ The other three, in one line each. **The planner needs a safe clue that memory m
 
 ---
 
-## The system you would build
+## Why a score cannot make this decision
 
 The obvious fix is to make the system pickier about what it returns. Every stored record comes back with a score for how closely its wording matches the question, so you raise the score a record has to reach before it is allowed through. In [the last essay](/essays/agent-memory-systems-primer#can-thresholds-fix-this) I tested that setting across its whole range, from letting everything through to letting almost nothing through. No value worked.
 
 The reason is that one number is being asked to do two opposite jobs. Raise it far enough to silence the questions that should get nothing back, and you also cut records from the questions that should get something. In that test the score had to reach 0.65 before a question needing no memory stopped returning rows, and at that setting a question the store could answer returned nothing either.
+
+## Architecture
 
 If a number cannot make this decision, a model might. That is the next idea, and it is a good one. Put a model in front of the search. Ask it whether the turn needs anything the store might hold. Search only when it says yes. Then, before any record reaches the answer, ask a second model whether that record would change what the assistant was going to say. Three decisions instead of one score.
 
@@ -62,6 +64,21 @@ The ambient profile and the conditional gate look like two features. They are tw
 
 ## What the experiments show
 
+Two blind splits, 77 turns, scored against thresholds fixed before the runs.
+
+| What Retold has to do | Measure | Result |
+| --- | --- | --- |
+| Stay quiet when nothing stored applies | ordinary turns that received memory | 1 of 40 |
+| Return a fact the turn asks for | explicit recall | 19 of 20 |
+| Return a fact the turn needs but never asks for | implicit recall | 13 of 15 |
+| Admit only records that improve the answer | precision among admitted records | 36 of 37 |
+| Admit nothing unsafe | unsafe admissions or promotions | 0 |
+| Make the answer better when memory applies | answers correct without memory, then with | 1 of 19, then 15 of 19 |
+
+<TableNote>Fourth and fifth blind splits combined, `gpt-4o` planning and `gpt-5.4` judging. Precision counts one case an independent reviewer judged helpful but optional; under the blind labels alone it reads 34 of 37. The last row is the fifth split only, and it is the one that says whether any of this is worth its cost: the same model answering the same turns, with the memory path off and then on.</TableNote>
+
+The rest of this section is how those numbers come about, and the experiment that decided the design.
+
 The store for the rest of this essay is a fourteen-turn conversation I use as a fixture. Over seven turns the user states the things worth keeping. Five of them matter here:
 
 - Keep answers concise and technical, with a short example.
@@ -80,21 +97,30 @@ The second one is worth pausing on. A preference whose whole content is "use Pyt
 
 Start with the search on its own, with no planner and no judge in front of it. The question it has to answer is a simple one: given a turn, which stored records does it hand back? The last essay put that question to five other systems, and every one of them handed back records on turns that needed none.
 
-I built the store with promotion switched off, so every preference sits in the conditional store like any other record, and used each turn verbatim as the search query. The local embedder does the ranking, so this runs without a hosted model and returns the same thing every time.
+I built the store with promotion switched off, so every preference sits in the conditional store like any other record, and used each turn verbatim as the search query. The local embedder does the ranking, so this runs without a hosted model and returns the same thing every time. The store holds seven records, one of which the conversation supersedes, leaving six live ones:
 
-| Turn | Should return | Records returned |
+| Short name | Record |
+| --- | --- |
+| `language` | Use Python for code examples unless another language is requested |
+| `code style` | camelCase function names, a dataclass for classes, docstrings, type annotations |
+| `answer style` | Keep answers concise and include the important trade-off |
+| `time zone` | The working time zone is Asia/Kolkata |
+| `owner` | Priya Nair owns the deployment checklist |
+| `repo` | The deployment checklist lives in the repository |
+
+| Turn | Should come back | Came back, best match first |
 | --- | --- | --- |
-| Write a prime number detector. | the Python and style preferences | 6 of 7, including both |
-| Write a small Python function that detects prime numbers. | the style preference | 6 of 7, including it |
-| What time zone should you use when suggesting a meeting for me? | the time zone | 6 of 7, including it |
-| Should I use tabs or spaces in Python? | nothing | 6 of 7 |
-| How often should a deployment checklist be reviewed? | nothing | 6 of 7 |
-| What is a clear way to format a trade-off in a design note? | nothing | 6 of 7 |
-| What are common mistakes when naming a Python virtual environment? | nothing | 6 of 7 |
+| Write a prime number detector. | `code style`, `language` | `code style`, `language`, `answer style`, `owner`, `time zone`, `repo` |
+| Write a small Python function that detects prime numbers. | `code style` | `language`, `code style`, `answer style`, `owner`, `time zone`, `repo` |
+| What time zone should you use when suggesting a meeting for me? | `time zone` | `time zone`, `answer style`, `language`, `repo`, `code style`, `owner` |
+| Should I use tabs or spaces in Python? | nothing | `language`, `code style`, `answer style`, `time zone`, `repo`, `owner` |
+| How often should a deployment checklist be reviewed? | nothing | `owner`, `repo`, `code style`, `language`, `answer style`, `time zone` |
+| What is a clear way to format a trade-off in a design note? | nothing | `answer style`, `language`, `code style`, `owner`, `time zone`, `repo` |
+| What are common mistakes when naming a Python virtual environment? | nothing | `language`, `code style`, `answer style`, `time zone`, `repo`, `owner` |
 
-<TableNote>Search alone, 12 September 2026, promotion off so nothing is ambient, each turn used verbatim as the query. Six of the seven stored records come back on every turn, including all four that should receive nothing. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `Write a prime number detector.`, which needs two records, tops out at 0.016.</TableNote>
+<TableNote>Search alone, 12 September 2026, promotion off so nothing is ambient, each turn used verbatim as the query, k=8. Every live record comes back on every turn, including the four that should receive nothing. Only the order changes. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `Write a prime number detector.`, which needs two records, tops out at 0.016.</TableNote>
 
-Search does not miss these records. It cannot tell the turns apart at all. It answers the question "what is related to this sentence?" the same way whether the sentence needs memory or not, which is the finding the last essay reached from the other direction: on a larger store the same ranking buries the record that matters, and on a small one it returns almost everything.
+Search misses nothing here, and discriminates nothing either. Every live record comes back on every turn, so the only thing the ranking decides is the order. It answers "what is related to this sentence?" the same way whether the sentence needs memory or not, which is the last essay's finding reached from the other direction: on a larger store that same ranking buries the record that matters, and on a small one it returns the lot.
 
 That is the correct reason to build something. I assumed the planner and the judge would fix it. They do not, and the reason is not a bug.
 
