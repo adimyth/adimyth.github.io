@@ -11,7 +11,7 @@ draft: true
 
 ## TL;DR
 
-My last essay, [Related Is Not Useful](/essays/agent-memory-systems-primer), measured five agent memory systems at their documented defaults and found the same design in all of them. They rank stored records by how closely the wording matches the question, so they return their full quota on turns that need nothing and miss a saved preference whose wording differs from the request.
+My last essay, [Related Is Not Useful](/essays/agent-memory-systems-primer), measured five agent memory systems at their documented defaults. Two results held across all of them. Every system returned its cap on every probe, including one the store could not answer at all: twenty rows from Mem0, ten from LangMem and AgentCore, five from Letta, on fifteen probes out of fifteen, and Graphiti on fifteen out of eighteen. Nothing about the turn decided that number. And the further a saved rule sat from the wording of the request, the fewer systems surfaced it: the rule ranking 37th of 40 by similarity came back from none of them.
 
 That essay ended on a question it did not answer.
 
@@ -52,7 +52,7 @@ I filed every preference as an ordinary record, turned the profile off, and used
 
 <TableNote>`language` is the Python preference, `code style` the camelCase and annotations one, `answer style` the concise-answers one, and `owner` and `repo` the two deployment-checklist facts. Scores span 0.015 to 0.033 and point the wrong way as often as the right one: `Should I use tabs or spaces in Python?`, which needs nothing, tops out at 0.033, while `Write a prime number detector.`, which needs two records, tops out at 0.016.</TableNote>
 
-Search misses nothing, and discriminates nothing. Every live record comes back on every turn, including the three that should receive none, and the only thing the ranking decides is the order. It answers "what is related to this sentence?" identically whether the sentence needs memory or not. That is the last essay's finding from the other direction: on a large store this ranking buries the record that matters, and on a small one it returns the lot.
+Search misses nothing, and discriminates nothing. Every live record comes back on every turn, including the three that should receive none, and the only thing the ranking decides is the order. It answers "what is related to this sentence?" identically whether the sentence needs memory or not. That is the last essay's finding from the other direction. On a forty-record store the same ranking pushes the rule that matters down to 37th and nobody returns it. On a six-record store there is nothing to push it past, so everything comes back instead. Neither is a decision.
 
 ## Architecture
 
