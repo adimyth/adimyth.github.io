@@ -76,7 +76,7 @@ The second one is worth pausing on. A preference whose whole content is "use Pyt
 
 ## The planner never asks for the memory you use most
 
-Start with the search on its own, with no planner and no judge in front of it. This is the failure everyone expects, and it is the one the last essay was about.
+Start with the search on its own, with no planner and no judge in front of it. The question it has to answer is a simple one: given a turn, which stored records does it hand back? The last essay put that question to five other systems, and every one of them handed back records on turns that needed none.
 
 I built the store with promotion switched off, so every preference sits in the conditional store like any other record, and used each turn verbatim as the search query. The local embedder does the ranking, so this runs without a hosted model and returns the same thing every time.
 
