@@ -40,33 +40,66 @@ The shared API matters because it gives developers one request shape for a decis
 
 ## How Compass picks an answer
 
-Return to the support ticket. Compass first reads the ticket and the three team descriptions. It then tests the possible answers.
+Take the support ticket. The application gives Compass the ticket, a routing question, and three candidates: billing, technical, and sales. Compass produces two distributions over those same three candidates, then combines them.
 
-Reading the ticket is the expensive part. The model creates an internal working memory for the ticket, called a KV cache. Compass keeps that memory and reuses it while it checks billing, technical, and sales. It does not reread the same ticket from the beginning for every option.
-
-Compass looks at each option in two simple ways.
-
-**Candidate check.** Compass tests one claim at a time.
+**First, Compass checks each candidate on its own.** It asks a yes-or-no question for every candidate.
 
 ~~~text
-Ticket: “I was charged twice...”
-Question: Is billing the correct team?
-Answer scores: yes 0.94, no 0.06
+billing
+yes 0.94 | no 0.06
+
+technical
+yes 0.31 | no 0.69
+
+sales
+yes 0.02 | no 0.98
 ~~~
 
-It runs the same check for technical and sales. A strong yes score raises that option’s probability.
+Compass turns those three yes-versus-no results into a distribution across billing, technical, and sales. This check asks, “Does this option fit the ticket?”
 
-**Candidate comparison.** Compass also lays all options beside each other, behind neutral labels such as A, B, and C. It asks the model to select the label that best fits the ticket. Neutral labels stop the word billing from giving the model an extra hint that option C does not get.
-
-The two checks see the same decision from different angles. The first asks, “Does this option fit?” The second asks, “Which option fits best?” Compass combines the scores and converts them into one probability distribution.
+**Second, Compass compares the candidates side by side.** It shows the real candidate names and criteria, but asks the model to answer with a neutral symbol.
 
 ~~~text
-State + answer options
-          ↓
-candidate checks + candidate comparison
-          ↓
-probabilities over the application’s options
+A. billing
+   duplicate charge/refund
+
+B. technical
+   app fault/bug
+
+C. sales
+   buy/account upgrade
 ~~~
+
+Compass asks, “Which option best fits the ticket? Reply with A, B, or C.” It then reads the model’s scores for A, B, and C.
+
+The letters do not hide the candidate names from the model. The model still reads billing, technical, and sales. They standardise the answer token that Compass scores. If Compass read the score of the word `billing`, that score would partly reflect the word itself: its spelling, tokenisation, and how often it appears in training text. A, B, and C remove that final-output clue. During training, Compass also renames and reorders candidates so the model learns not to lean on label wording or position.
+
+**Finally, Compass combines the two distributions.** It gives the candidate check and the side-by-side comparison equal weight in log space. Without calibration, this is the geometric mean of each candidate’s two probabilities.
+
+~~~text
+billing
+check:      0.70
+comparison: 0.80
+combined:   0.75
+~~~
+
+For billing, the unnormalised combined score is √(0.70 × 0.80). Compass performs the same calculation for technical and sales. Agreement raises a candidate. If one check likes an option and the other does not, the geometric mean pulls it down. Before Compass rescales the three combined scores into the final distribution, the release applies a temperature fitted on held-out examples so its reported confidence better matches its observed accuracy. The server calculates the rule in log space to avoid tiny numbers, but it produces the same result.
+
+```text
+√(check × comparison)
+```
+
+~~~text
+ticket + allowed answers
+          ↓
+check each + compare all
+          ↓
+combine + calibrate
+          ↓
+probabilities
+~~~
+
+The steps above reuse the same ticket. Compass reads the ticket once, keeps the model’s internal working memory for it, called a KV cache, and reuses that memory for the short candidate checks. The cache improves speed and cost. It does not change the decision logic.
 
 The application still owns the consequences. A high score can route a ticket. A low score can send the ticket to a person or a larger model. The model cannot invent an answer outside the answer set.
 
