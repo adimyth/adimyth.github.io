@@ -42,35 +42,23 @@ The shared API matters because it gives developers one request shape for a decis
 
 Take the support ticket. The application gives Compass the ticket, a routing question, and three candidates: billing, technical, and sales. Compass produces two distributions over those same three candidates, then combines them.
 
-**First, Compass checks each candidate on its own.** It asks a yes-or-no question for every candidate.
+**First, Compass checks each candidate on its own.** Compass asks the model three separate yes-or-no questions:
 
-~~~text
-billing
-yes 0.94 | no 0.06
+- “Is **billing** the right team for this ticket?”
+- “Is **technical** the right team for this ticket?”
+- “Is **sales** the right team for this ticket?”
 
-technical
-yes 0.31 | no 0.69
-
-sales
-yes 0.02 | no 0.98
-~~~
+For this ticket, the model might score billing as `yes 0.94, no 0.06`; technical as `yes 0.31, no 0.69`; and sales as `yes 0.02, no 0.98`.
 
 Compass turns those three yes-versus-no results into a distribution across billing, technical, and sales. This check asks, “Does this option fit the ticket?”
 
-**Second, Compass compares the candidates side by side.** It shows the real candidate names and criteria, but asks the model to answer with a neutral symbol.
+**Second, Compass compares the candidates side by side.** It shows the real candidate names and criteria, but asks the model to answer with a neutral symbol:
 
-~~~text
-A. billing
-   duplicate charge/refund
+- **A. billing:** handles duplicate charges and refunds.
+- **B. technical:** handles app faults and bugs.
+- **C. sales:** handles buying and account upgrades.
 
-B. technical
-   app fault/bug
-
-C. sales
-   buy/account upgrade
-~~~
-
-Compass asks, “Which option best fits the ticket? Reply with A, B, or C.” It then reads the model’s scores for A, B, and C.
+Compass then asks, “Which option best fits the ticket? Reply with A, B, or C.” It reads the model’s scores for A, B, and C.
 
 The letters do not hide the candidate names from the model. The model still reads billing, technical, and sales. They standardise the answer token that Compass scores. If Compass read the score of the word `billing`, that score would partly reflect the word itself: its spelling, tokenisation, and how often it appears in training text. A, B, and C remove that final-output clue. During training, Compass also renames and reorders candidates so the model learns not to lean on label wording or position.
 
