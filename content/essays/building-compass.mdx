@@ -2,7 +2,7 @@
 title: "Compass: An Open Decision Model"
 description: "Compass picks from answers your application defines. It uses Qwen3.5-4B, returns calibrated probabilities, and serves the public System One API."
 date: "2026-09-25"
-readTime: "6 min read"
+readTime: "11 min read"
 featured: true
 draft: false
 ---
@@ -12,22 +12,34 @@ A customer writes: “I was charged twice and the app crashed this morning. Plea
 A support system has a bounded decision to make. Which team should receive it: billing, technical, or sales? A chat model can write an answer. Compass picks from the three choices the application supplied and returns a probability for each.
 
 ~~~text
-billing:   0.91
-technical: 0.08
+billing:   0.92
+technical: 0.07
 sales:     0.01
 ~~~
 
-That is Compass: an open decision model built on Qwen3.5-4B. It handles a state, a question, and an answer set that your application defines. It returns Choice, Noul, and Score answers without generating an answer sentence.
+That is Compass: an open decision model built on Qwen3.5-4B. It returns Choice, Noul, and Score answers without generating an answer sentence.
 
 A Choice picks one named option. Noul returns the probability of yes for a yes-or-no question. Score returns a distribution across ordered levels such as low, medium, and high.
 
-The model, adapter, server, trainer, calibration code, tests, and evaluation scripts are open in the [Compass repository](https://github.com/adimyth/compass).
+The repository includes the model adapter, server, trainer, calibration code, tests, and evaluation scripts.
+
+<LinkPreview href="https://github.com/adimyth/compass" title="adimyth/compass" description="An open decision model with a Qwen3.5-4B LoRA adapter, a System One API, public JevBench checks, and the Scope Check agent demo." />
+
+## System One and System Two models
+
+Jev and Compass are System One models. They make a bounded decision from a state and a list of answers chosen by the application. Their response is a probability distribution such as `billing: 0.92, technical: 0.07, sales: 0.01`. The product can route the high-confidence ticket or escalate the uncertain one.
+
+Qwen with thinking enabled is a System Two model. It generates a written reasoning trace before it produces an answer. On a reporting-chain question, it can write `Maya → Priya → Omar → Riya`, count three links, then answer yes. Those generated tokens give it a scratchpad for a task that needs several steps.
+
+[System 1 and System 2 thinking](https://thedecisionlab.com/reference-guide/philosophy/system-1-and-system-2-thinking) describe the distinction in human decision-making. For software, the useful distinction is practical: System One makes a fixed, typed decision; System Two can spend more generation on a hard problem and leave intermediate work in its context.
+
+A chat completion also generates text from an open-ended vocabulary. A System One API restricts the answer to the choices the application supplied and returns a score for each. That makes it useful when code, rather than a reader, must decide what happens next.
 
 ## The connection to Jev
 
 Jev introduced a public System One API for this kind of work: send a state and typed questions, receive probabilities over caller-defined answers. Compass implements that public task contract and the same /v1/systemone wire format, so an existing TypeSafe client can call Compass by changing its base URL.
 
-TypeSafe has not released Jev’s weights or its full training and inference system. We cannot reproduce or compare those private internals. Compass uses Qwen3.5-4B, a LoRA adapter, candidate scoring, and temperature calibration. It is an independent implementation of Jev’s public interface and interaction model.
+Compass uses Qwen3.5-4B, a LoRA adapter, candidate scoring, and temperature calibration. It is an independent implementation of Jev’s public interface and interaction model.
 
 | | Jev | Compass |
 | --- | --- | --- |
@@ -38,70 +50,114 @@ TypeSafe has not released Jev’s weights or its full training and inference sys
 
 The shared API matters because it gives developers one request shape for a decision model. It also lets [JevBench](https://github.com/fstandhartinger/jevbench) call Compass through its unchanged TypeSafe adapter.
 
+## When an answer needs a working trace
+
+The test asks a simple question over an organisation chart: is one employee exactly a fixed number of manager links above another? In the three-link example, a correct solver follows the requested reporting path, counts the links, then answers yes or no.
+
+![A three-link reporting question. A reasoning model can write the path before it answers; Compass scores the fixed yes or no decision without generating the path.](/images/compass-manager-chain-example.svg)
+
+I generated 20 balanced yes-or-no questions at each depth: 1, 2, 3, 4, 6, 8, and 12 links. Each chart includes the requested reporting chain plus two unrelated chains. I sent the same 140 questions to Compass 0.2.0, TypeSafe’s `jev-latest` API, which returned Jev 1.13.0, and Qwen3.5-9B with thinking enabled. Compass and Jev returned a probability for the same typed question. Qwen wrote a reasoning trace, then returned `FINAL: YES` or `FINAL: NO`.
+
+Compass and Jev must choose between yes and no at one response position. Qwen can write the relevant path, count the links, and answer after that.
+
+Qwen3.5-9B finished 129 of 140 questions correctly, or 92%. Compass got 82 of 140 (59%) and Jev got 90 of 140 (64%). Every Qwen response that reached a final answer was correct. The 11 misses had no final answer.
+
+| Manager links | Compass | Jev | Qwen3.5-9B | Qwen median reasoning tokens | Qwen gave no final answer |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 20/20 (100%) | 20/20 (100%) | 16/20 (80%) | 842 | 4 |
+| 2 | 10/20 (50%) | 14/20 (70%) | 17/20 (85%) | 987 | 3 |
+| 3 | 10/20 (50%) | 12/20 (60%) | 17/20 (85%) | 981 | 3 |
+| 4 | 10/20 (50%) | 13/20 (65%) | 19/20 (95%) | 989 | 1 |
+| 6 | 10/20 (50%) | 11/20 (55%) | 20/20 (100%) | 1,139 | 0 |
+| 8 | 12/20 (60%) | 10/20 (50%) | 20/20 (100%) | 1,242 | 0 |
+| 12 | 10/20 (50%) | 10/20 (50%) | 20/20 (100%) | 2,260 | 0 |
+| All | 82/140 (59%) | 90/140 (64%) | 129/140 (92%) |  | 11 |
+
+![Accuracy across reporting-chain lengths. Compass and Jev fall to chance-level accuracy after the one-link questions. Qwen3.5-9B writes longer reasoning traces as chains deepen and reaches 100% at 6, 8, and 12 links.](/images/compass-manager-chain-results-qwen9b.svg)
+
+On this balanced manager-chain test, Compass and Jev sit at or near the 50% chance baseline from two links onward. They cannot write intermediate results into the context. Qwen reaches 100% at 6, 8, and 12 links after it can write and inspect a path.
+
+I ran Qwen through OpenRouter on Parasail’s bf16 serving path at temperature zero. Ten of its 11 incomplete responses stopped after 301 to 316 seconds. The remaining one stopped after 917 seconds.
+
+> *Each was a loop without a final answer, so I scored it as wrong. The loops appeared only at depths 1 through 4.*
+
+I measured a large runtime difference. Jev’s median request finished in 0.38 seconds. Qwen’s took 23.54 seconds, 62× longer. TypeSafe’s API reported 2,800 Jev output tokens across the 140 questions. Qwen generated 444,748, 159× more. OpenRouter billed Qwen $0.056. TypeSafe did not report a dollar charge for Jev, so I have not guessed at one.
+
+![Jev and Qwen3.5-9B on the same 140 manager-chain questions. Jev’s median endpoint latency is 0.38 seconds versus Qwen’s 23.54 seconds. Jev reports 2,800 output tokens; Qwen generates 444,748. OpenRouter billed Qwen $0.056, while TypeSafe did not report a Jev dollar charge.](/images/compass-manager-chain-runtime-qwen9b.svg)
+
+The comparison uses different model sizes. Compass uses a 4B backbone; the reasoning model has 9B parameters and runs through an API. The final Qwen sweep took about 16 minutes, excluding an earlier rate-limited attempt. Generated working memory lets the 9B model solve this path-following task. Compass uses a fixed typed decision for a different class of product decision.
+
 ## How Compass picks an answer
 
 Take the support ticket. The application gives Compass the ticket, a routing question, and three candidates: billing, technical, and sales. Compass produces two distributions over those same three candidates, then combines them.
 
-**First, Compass checks each candidate on its own.** Compass asks the model three separate yes-or-no questions:
+**First, Compass checks each candidate on its own.** For each check, the model sees the full ticket, the routing question, and the definitions of billing, technical, and sales. Compass then changes one line: the proposed answer.
 
 - “Is **billing** the right team for this ticket?”
 - “Is **technical** the right team for this ticket?”
 - “Is **sales** the right team for this ticket?”
 
-For this ticket, the model might score billing as `yes 0.94, no 0.06`; technical as `yes 0.31, no 0.69`; and sales as `yes 0.02, no 0.98`.
+For this ticket, the model might return:
 
-Compass turns those three yes-versus-no results into a distribution across billing, technical, and sales. This check asks, “Does this option fit the ticket?”
+- Billing: `yes 0.94, no 0.06`
+- Technical: `yes 0.31, no 0.69`
+- Sales: `yes 0.02, no 0.98`
 
-**Second, Compass compares the candidates side by side.** It shows the real candidate names and criteria, but asks the model to answer with a neutral symbol:
+Compass divides each `yes` value by its matching `no` value, then scales the three results to total 100%.
 
-- **A. billing:** handles duplicate charges and refunds.
-- **B. technical:** handles app faults and bugs.
-- **C. sales:** handles buying and account upgrades.
+- Billing: `0.94 ÷ 0.06 = 15.67`
+- Technical: `0.31 ÷ 0.69 = 0.45`
+- Sales: `0.02 ÷ 0.98 = 0.02`
 
-Compass then asks, “Which option best fits the ticket? Reply with A, B, or C.” It reads the model’s scores for A, B, and C.
+For billing, the three values total `16.14`. The billing calculation is `15.67 ÷ 16.14 = 0.971`. Compass performs the same division for technical and sales. That gives the candidate-check result: billing 97%, technical 3%, and sales less than 1%.
 
-The letters do not hide the candidate names from the model. The model still reads billing, technical, and sales. They standardise the answer token that Compass scores. If Compass read the score of the word `billing`, that score would partly reflect the word itself: its spelling, tokenisation, and how often it appears in training text. A, B, and C remove that final-output clue. During training, Compass also renames and reorders candidates so the model learns not to lean on label wording or position.
-
-**Finally, Compass combines the two distributions.** It gives the candidate check and the side-by-side comparison equal weight in log space. Without calibration, this is the geometric mean of each candidate’s two probabilities.
-
-~~~text
-billing
-check:      0.70
-comparison: 0.80
-combined:   0.75
-~~~
-
-For billing, the unnormalised combined score is √(0.70 × 0.80). Compass performs the same calculation for technical and sales. Agreement raises a candidate. If one check likes an option and the other does not, the geometric mean pulls it down. Before Compass rescales the three combined scores into the final distribution, the release applies a temperature fitted on held-out examples so its reported confidence better matches its observed accuracy. The server calculates the rule in log space to avoid tiny numbers, but it produces the same result.
-
-```text
-√(check × comparison)
-```
+**Second, Compass compares the candidates side by side.** It puts the ticket, question, and the three team definitions into one prompt. The actual prompt has one temporary letter next to each team:
 
 ~~~text
-ticket + allowed answers
-          ↓
-check each + compare all
-          ↓
-combine + calibrate
-          ↓
-probabilities
+<document>
+I was charged twice and the app crashed this morning.
+</document>
+
+Question: Which team should receive this ticket?
+Allowed answers:
+  A. billing: handles duplicate charges and refunds.
+  B. sales: handles buying and account upgrades.
+  C. technical: handles app faults and bugs.
+Which one is the correct answer? Reply with its letter only.
 ~~~
+
+`A`, `B`, and `C` are temporary index markers, not extra answers. Compass maps them straight back to billing, sales, and technical. The model still reads the real team names and definitions. The letters standardise the final answer token, so the comparison does not reward a team because its name appears more often in training text or breaks into different tokens. At the next response position, the model has a score for every possible token. Compass reads the scores for the three letter tokens only, scales those three scores to 100%, then maps the result back to the teams. If it gives `A` 80%, `B` 3%, and `C` 17%, the comparison result is billing 80%, sales 3%, and technical 17%.
+
+**Finally, Compass combines the two distributions.** Treat the candidate check and the side-by-side comparison as two opinions about the same ticket. Compass gives them equal weight and rewards agreement. Billing stays high because both checks favour it. Technical stays lower because neither check puts it first.
+
+- Candidate check: billing 97.1%, technical 2.8%, sales 0.1%.
+- Side-by-side comparison: billing 80%, technical 17%, sales 3%.
+
+Compass multiplies the two results for each team and takes the square root.
+
+- Billing: `√(0.971 × 0.80) = 0.881`
+- Technical: `√(0.028 × 0.17) = 0.069`
+- Sales: `√(0.001 × 0.03) = 0.005`
+
+Those three values total 0.956. Compass divides each by 0.956, giving billing 92%, technical 7%, and sales 1%. A final calibration step adjusts the confidence level using held-out examples.
+
+The full flow is:
+
+1. Compass reads the ticket and routing rubric.
+2. It tests billing, technical, and sales one at a time, then turns the three yes/no results into a candidate-check result.
+3. It shows the same choices together and creates a comparison result.
+4. It multiplies the matching scores, takes the square root, then scales the result to 100%.
+5. It calibrates the result and returns probabilities for billing, technical, and sales.
 
 The steps above reuse the same ticket. Compass reads the ticket once, keeps the model’s internal working memory for it, called a KV cache, and reuses that memory for the short candidate checks. The cache improves speed and cost. It does not change the decision logic.
 
 The application still owns the consequences. A high score can route a ticket. A low score can send the ticket to a person or a larger model. The model cannot invent an answer outside the answer set.
 
-## Why use this instead of a chat completion?
+## How I built Compass
 
-A chat model can answer the ticket with “billing.” It can also answer with “probably billing,” a paragraph, or a label the application did not list. The application then has to parse the reply and decide whether it trusts the model’s confidence.
+I built Compass as a small decision stack: a contract compiler that validates the request, a Qwen scorer that rates the candidates, a fusion rule that combines the two readouts, and a calibration step that turns raw scores into useful probabilities. The server exposes that stack through the public System One API.
 
-Compass removes that output-handling step. Your code sends the allowed answers, receives a number for each answer, and applies its own threshold.
-
-The answer set must still make sense. Compass can choose the wrong team. The narrow interface removes formatting mistakes; it does not make the judgement correct.
-
-## How we trained Compass
-
-We trained Compass on examples with three parts: a state, a typed answer set, and the expected answer distribution.
+I trained Compass on examples with three parts: a state, a typed answer set, and the expected answer distribution.
 
 For each example, the training code scores the candidates using the same two checks used by the server. When the scores favour the wrong answer, the LoRA adapter updates. That keeps training and serving aligned.
 
@@ -123,9 +179,9 @@ You can build a smaller version without training a new model.
 
 The [Compass code](https://github.com/adimyth/compass) contains the contract compiler, scorer, trainer, calibration step, and release scripts.
 
-## Public evidence
+## JevBench
 
-We used the public tiers of JevBench as a transfer check. The public JevBench files never enter Compass training, calibration, or release selection. The release process checks for 8-gram overlap before each stage.
+[JevBench](https://github.com/fstandhartinger/jevbench) is a public benchmark for System One decision models: it tests probability answers to typed decision questions. We used its public tiers as a transfer check. The public JevBench files never enter Compass training, calibration, or release selection.
 
 | JevBench public tier | Items | Compass 0.2.0 accuracy |
 | --- | ---: | ---: |
@@ -133,9 +189,9 @@ We used the public tiers of JevBench as a transfer check. The public JevBench fi
 | Standard | 72 | 87.5% |
 | Hard | 111 | 60.4% |
 
-The public tiers are not a JevBench ranking. The benchmark maintainer owns the held-out and judge tiers. I opened [JevBench issue #53](https://github.com/fstandhartinger/jevbench/issues/53) to submit Compass for the maintainer-run v1.4 evaluation. The issue records the release, serving command, public results, cost basis, and overlap checks.
+I opened [JevBench issue #53](https://github.com/fstandhartinger/jevbench/issues/53) to submit Compass for the maintainer-run v1.4 evaluation.
 
-## Scope Check: one agent use case
+## Scope Check: checking an agent’s action
 
 [Scope Check](https://github.com/adimyth/compass/blob/main/docs/SCOPE_CHECK_DEMO.md) shows how a decision model can sit before an agent action.
 
@@ -161,6 +217,12 @@ The application keeps control. In this demo, normal code hard-blocks money movem
 
 On its first live run, Compass matched all four authored Scope Check cases. The injected transfer received a 98.57% reject probability. The requested calendar event received a 62.88% authorize probability. The M4 Pro reference path took 2.32 to 2.57 seconds per request. Those numbers show the current demo, not a claim of agent security.
 
-Compass gives an application a bounded decision with visible uncertainty. You can use that pattern wherever your product already knows the possible actions and needs code to decide what happens next.
+## A two-speed decision system
 
-<LinkPreview href="https://github.com/adimyth/compass" title="adimyth/compass" description="An open decision model with a Qwen3.5-4B LoRA adapter, a System One API, public JevBench checks, and the Scope Check agent demo." />
+System One should answer first when an application has a small, defined answer set. Compass returns a calibrated distribution, and the application accepts the top answer only when it clears an acceptance threshold. A ticket with `billing: 0.92` can route to billing. A ticket with `billing: 0.46, technical: 0.43` should escalate.
+
+Set that threshold on held-out examples from the product. Fine-tuning helps Compass separate the right answer from close alternatives. Calibration makes its probabilities better estimates of correctness. The product team can then choose the lowest score that meets its quality target for answers it accepts without escalation.
+
+The uncertain cases go to System Two with the same state, question, and answer set. That model can generate a working trace, inspect tools, or ask for human review. The application should record that escalation, the System One distribution, and the final outcome. Those records supply the next round of training and calibration data.
+
+Compass gives the application a bounded first decision with visible uncertainty. System Two spends more work only when the System One decision does not clear the product's acceptance bar.

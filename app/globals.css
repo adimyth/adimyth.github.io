@@ -618,6 +618,118 @@
   padding: 1rem;
 }
 
+.prose-essay .essay-image-trigger {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 1.75rem auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.prose-essay .essay-image-trigger img {
+  margin: 0 auto;
+}
+
+.prose-essay .diagram-fit .essay-image-trigger {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .prose-essay .essay-image-trigger-wide {
+    position: relative;
+    left: 50%;
+    width: min(1040px, calc(100vw - 5rem));
+    max-width: none;
+    transform: translateX(-50%);
+  }
+}
+
+.essay-image-lightbox {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: rgb(10 12 15 / 88%);
+}
+
+.essay-image-lightbox-content {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(1600px, 100%);
+  max-height: 100%;
+}
+
+.essay-image-lightbox-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 4rem);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+}
+
+.essay-image-lightbox-close {
+  position: absolute;
+  z-index: 1;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 999px;
+  color: white;
+  background: rgb(10 12 15 / 76%);
+  cursor: pointer;
+}
+
+.essay-image-lightbox-close:hover {
+  background: rgb(10 12 15 / 96%);
+}
+
+@media (max-width: 640px) {
+  .essay-image-lightbox {
+    display: block;
+    overflow: auto;
+    padding: 1rem;
+  }
+
+  .essay-image-lightbox-content img {
+    max-height: calc(100vh - 2rem);
+  }
+
+  .essay-image-lightbox-content-wide {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    min-height: 100%;
+    padding-top: 3.5rem;
+  }
+
+  .essay-image-lightbox-content-wide img {
+    width: 960px;
+    max-width: none;
+    max-height: none;
+  }
+
+  .essay-image-lightbox-close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+  }
+}
+
 .prose-essay video {
   width: 100%;
   max-width: 100%;
