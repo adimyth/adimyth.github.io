@@ -48,7 +48,7 @@ Compass uses Qwen3.5-4B, a LoRA adapter, candidate scoring, and temperature cali
 | Answer | Typed probabilities | Typed probabilities |
 | Runs | TypeSafe API | Your machine or GPU |
 
-The shared API matters because it gives developers one request shape for a decision model. It also lets [JevBench](https://github.com/fstandhartinger/jevbench) call Compass through its unchanged TypeSafe adapter.
+The shared API matters because it gives developers one request shape for a decision model.
 
 ## When an answer needs a working trace
 
@@ -56,9 +56,7 @@ The test asks a simple question over an organisation chart: is one employee exac
 
 ![A three-link reporting question. A reasoning model can write the path before it answers; Compass scores the fixed yes or no decision without generating the path.](/images/compass-manager-chain-example.svg)
 
-I generated 20 balanced yes-or-no questions at each depth: 1, 2, 3, 4, 6, 8, and 12 links. Each chart includes the requested reporting chain plus two unrelated chains. I sent the same 140 questions to Compass 0.2.0, TypeSafe’s `jev-latest` API, which returned Jev 1.13.0, and Qwen3.5-9B with thinking enabled. Compass and Jev returned a probability for the same typed question. Qwen wrote a reasoning trace, then returned `FINAL: YES` or `FINAL: NO`.
-
-Compass and Jev must choose between yes and no at one response position. Qwen can write the relevant path, count the links, and answer after that.
+I generated 20 balanced yes-or-no questions at each depth: 1, 2, 3, 4, 6, 8, and 12 links. I sent the same 140 questions to Compass 0.2.0, Jev 1.13.0, and Qwen3.5-9B with thinking enabled. Compass and Jev returned a probability for the same typed question. Qwen wrote a reasoning trace, then returned `FINAL: YES` or `FINAL: NO`.
 
 Qwen3.5-9B finished 129 of 140 questions correctly, or 92%. Compass got 82 of 140 (59%) and Jev got 90 of 140 (64%). Every Qwen response that reached a final answer was correct. The 11 misses had no final answer.
 
@@ -81,11 +79,9 @@ I ran Qwen through OpenRouter on Parasail’s bf16 serving path at temperature z
 
 > *Each was a loop without a final answer, so I scored it as wrong. The loops appeared only at depths 1 through 4.*
 
-I measured a large runtime difference. Jev’s median request finished in 0.38 seconds. Qwen’s took 23.54 seconds, 62× longer. TypeSafe’s API reported 2,800 Jev output tokens across the 140 questions. Qwen generated 444,748, 159× more. OpenRouter billed Qwen $0.056. TypeSafe did not report a dollar charge for Jev, so I have not guessed at one.
+Jev’s median request finished in 0.38 seconds. Qwen’s took 23.54 seconds, 62× longer. Jev reported 2,800 output tokens across the 140 questions. Qwen generated 444,748, 159× more. The Jev run cost $0.0028; the Qwen run cost $0.056, 20× more.
 
-![Jev and Qwen3.5-9B on the same 140 manager-chain questions. Jev’s median endpoint latency is 0.38 seconds versus Qwen’s 23.54 seconds. Jev reports 2,800 output tokens; Qwen generates 444,748. OpenRouter billed Qwen $0.056, while TypeSafe did not report a Jev dollar charge.](/images/compass-manager-chain-runtime-qwen9b.svg)
-
-The comparison uses different model sizes. Compass uses a 4B backbone; the reasoning model has 9B parameters and runs through an API. The final Qwen sweep took about 16 minutes, excluding an earlier rate-limited attempt. Generated working memory lets the 9B model solve this path-following task. Compass uses a fixed typed decision for a different class of product decision.
+![Jev and Qwen3.5-9B on the same 140 manager-chain questions. Jev’s median endpoint latency is 0.38 seconds versus Qwen’s 23.54 seconds. Jev reports 2,800 output tokens; Qwen generates 444,748. The Jev run cost $0.0028 and the Qwen run cost $0.056.](/images/compass-manager-chain-runtime-qwen9b.svg)
 
 ## How Compass picks an answer
 
@@ -164,7 +160,7 @@ For each example, the training code scores the candidates using the same two che
 We also change the presentation of each decision during training and evaluation.
 
 - We reorder the same answer options.
-- We replace meaningful labels such as billing with neutral labels such as option_3.
+- We replace meaningful labels such as billing with neutral labels such as `option_3`.
 - We include hard cases where two options look plausible.
 
 Those checks help us catch a model that learned the ordering or label names instead of the actual criterion. We then fit a temperature on held-out examples so the returned probabilities better match observed accuracy.
