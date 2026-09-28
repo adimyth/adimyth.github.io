@@ -58,7 +58,7 @@ The test asks a simple question over an organisation chart: is one employee exac
 
 I generated 20 balanced yes-or-no questions at each depth: 1, 2, 3, 4, 6, 8, and 12 links. I sent the same 140 questions to Compass 0.2.0, Jev 1.13.0, and Qwen3.5-9B with thinking enabled. Compass and Jev returned a probability for the same typed question. Qwen wrote a reasoning trace, then returned `FINAL: YES` or `FINAL: NO`.
 
-Qwen3.5-9B finished 129 of 140 questions correctly, or 92%. Compass got 82 of 140 (59%) and Jev got 90 of 140 (64%). Every Qwen response that reached a final answer was correct. The 11 misses had no final answer.
+Qwen3.5-9B finished 129 of 140 questions correctly, or 92%. Compass got 82 of 140 (59%) and Jev got 91 of 140 (65%). Every Qwen response that reached a final answer was correct. The 11 misses had no final answer.
 
 | Manager links | Compass | Jev | Qwen3.5-9B | Qwen median reasoning tokens | Qwen gave no final answer |
 | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -66,22 +66,24 @@ Qwen3.5-9B finished 129 of 140 questions correctly, or 92%. Compass got 82 of 14
 | 2 | 10/20 (50%) | 14/20 (70%) | 17/20 (85%) | 987 | 3 |
 | 3 | 10/20 (50%) | 12/20 (60%) | 17/20 (85%) | 981 | 3 |
 | 4 | 10/20 (50%) | 13/20 (65%) | 19/20 (95%) | 989 | 1 |
-| 6 | 10/20 (50%) | 11/20 (55%) | 20/20 (100%) | 1,139 | 0 |
+| 6 | 10/20 (50%) | 12/20 (60%) | 20/20 (100%) | 1,139 | 0 |
 | 8 | 12/20 (60%) | 10/20 (50%) | 20/20 (100%) | 1,242 | 0 |
 | 12 | 10/20 (50%) | 10/20 (50%) | 20/20 (100%) | 2,260 | 0 |
-| All | 82/140 (59%) | 90/140 (64%) | 129/140 (92%) |  | 11 |
+| All | 82/140 (59%) | 91/140 (65%) | 129/140 (92%) |  | 11 |
 
 ![Accuracy across reporting-chain lengths. Compass and Jev fall to chance-level accuracy after the one-link questions. Qwen3.5-9B writes longer reasoning traces as chains deepen and reaches 100% at 6, 8, and 12 links.](/images/compass-manager-chain-results-qwen9b.svg)
 
-On this balanced manager-chain test, Compass and Jev sit at or near the 50% chance baseline from two links onward. They cannot write intermediate results into the context. Qwen reaches 100% at 6, 8, and 12 links after it can write and inspect a path.
+On this balanced manager-chain test, Compass and Jev sit at or near the 50% chance baseline from two links onward. They return the fixed yes-or-no score without generating a path. Qwen reaches 100% at 6, 8, and 12 links after it writes and inspects a path.
 
-I ran Qwen through OpenRouter on Parasail’s bf16 serving path at temperature zero. Ten of its 11 incomplete responses stopped after 301 to 316 seconds. The remaining one stopped after 917 seconds.
+I ran Qwen through OpenRouter on Parasail’s bf16 serving path at temperature zero, with 12 concurrent requests. Ten of its 11 incomplete responses stopped after 301 to 316 seconds. The remaining one stopped after 917 seconds.
 
 > *Each was a loop without a final answer, so I scored it as wrong. The loops appeared only at depths 1 through 4.*
 
-Jev’s median request finished in 0.38 seconds. Qwen’s took 23.54 seconds, 62× longer. Jev reported 2,800 output tokens across the 140 questions. Qwen generated 444,748, 159× more. The Jev run cost $0.0028; the Qwen run cost $0.056, 20× more.
+I served Compass locally on an RTX 4090 and called Jev serially from that same host. After five Compass warm-up requests, Compass finished at 287 ms median and 324 ms p95. Jev finished at 334 ms median and 399 ms p95. These are client-observed deployment routes: Compass runs on localhost; Jev crosses the TypeSafe API.
 
-![Jev and Qwen3.5-9B on the same 140 manager-chain questions. Jev’s median endpoint latency is 0.38 seconds versus Qwen’s 23.54 seconds. Jev reports 2,800 output tokens; Qwen generates 444,748. The Jev run cost $0.0028 and the Qwen run cost $0.056.](/images/compass-manager-chain-runtime-qwen9b.svg)
+Qwen took 23.54 seconds at the median, 82× longer than Compass. It generated 444,748 answer tokens across the 140 questions; Compass generated none and Jev reported 2,800. The Jev API run cost $0.0028. The Qwen run cost $0.056. Compass uses a self-hosted GPU, so I do not put its hardware cost beside those API charges.
+
+![Compass, Jev, and Qwen3.5-9B on the same 140 manager-chain questions. Compass took 0.287 seconds at the median on a local RTX 4090 endpoint; Jev took 0.334 seconds through the TypeSafe API; Qwen took 23.54 seconds through OpenRouter. Compass generated no answer tokens, Jev reported 2,800, and Qwen generated 444,748. The chart shows hosted API charges for Jev and Qwen; Compass is self-hosted.](/images/compass-manager-chain-runtime-qwen9b.svg)
 
 ## How Compass picks an answer
 
@@ -211,7 +213,7 @@ The application keeps control. In this demo, normal code hard-blocks money movem
 
 [AgentDojo](https://github.com/ethz-spylab/agentdojo) is a research benchmark for indirect prompt injection in tool-using agents. Scope Check borrows that attack pattern. It is a visual integration demo, not an AgentDojo result or a security claim.
 
-On its first live run, Compass matched all four authored Scope Check cases. The injected transfer received a 98.57% reject probability. The requested calendar event received a 62.88% authorize probability. The M4 Pro reference path took 2.32 to 2.57 seconds per request. Those numbers show the current demo, not a claim of agent security.
+On its first live run, Compass matched all four authored Scope Check cases. The injected transfer received a 98.57% reject probability. The requested calendar event received a 62.88% authorize probability. The M4 Pro reference path took 2.32 to 2.57 seconds per request because it uses the current MPS/PyTorch serving route and the full fusion readout. That result measures the Mac demo’s deployment path. The separate manager-chain endpoint run served the same Compass release on an RTX 4090 at 287 ms median. The workloads differ, so treat this as evidence that deployment changes latency rather than a direct Scope Check acceleration.
 
 ## A two-speed decision system
 
