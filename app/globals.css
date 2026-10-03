@@ -261,6 +261,11 @@
   margin-bottom: 0;
 }
 
+.prose-essay blockquote code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .prose-essay .essay-callout,
 .prose-essay .essay-summary {
   margin: 2.25rem 0;
