@@ -6,8 +6,6 @@ readTime: "10 min read"
 featured: true
 ---
 
-Most messaging products do one of two things with message content. WhatsApp and Signal go end-to-end encrypted, which means the server never sees plaintext and search has to happen on the device. Slack and the typical B2B messaging tool go the other way, plaintext in the database, searchable with Postgres full-text or Elasticsearch, and the security story is "we'll protect the database."
-
 I'm building a B2B messaging platform on top of the WhatsApp Business API. Customers, businesses talking to their end users, expect WhatsApp-style search across their entire history: type four characters, get matches, sub-second. That's a server-side feature. End-to-end encryption is off the table.
 
 But the messages are sensitive. Payment confirmations, KYC details, customer complaints. A database dump must not be readable. DPDP makes this a regulatory concern, not just a hygiene one.
@@ -52,11 +50,9 @@ inverted index:
   premium  → [doc3]
 ```
 
-A search for "policy" is a single key lookup. "renew AND policy" is an intersection of two lists. This is the data structure I need. The trick is building it in a form that doesn't leak.
+A search for "policy" is a single key lookup. "renew AND policy" is an intersection of two lists.
 
 ## Blind indexing
-
-The structure is the same. The values aren't.
 
 Instead of storing the word "renew" as the key, I store `HMAC-SHA256(SIK, "renew")`, a 32-byte hash, truncated to 16 bytes, computed with a secret index key (SIK) that lives in AWS Secrets Manager.
 
@@ -69,7 +65,7 @@ token_hmac        message_id
 \xe2c7b9f4...     doc2   (was "policy")
 ```
 
-A database dump shows random-looking bytes. Without the SIK, an attacker cannot reverse the hashes, HMAC is one-way, and cannot even compute candidate hashes to compare against, because they don't have the key.
+A database dump shows random-looking bytes. An ordinary hash lets a dump holder test likely words against stored tokens. HMAC blocks that offline guessing: without the SIK, they cannot compute a value to compare.
 
 At query time, I do the same transformation on the user's search term. `HMAC-SHA256(SIK, "renew")` produces the same bytes as it did at write time, so the lookup is a direct B-tree seek on an indexed column.
 
@@ -96,7 +92,7 @@ token_hmac       message_ids
 \xe2c7b9f4...    [doc1, doc2]
 ```
 
-Fewer rows. Looks tighter. It's also wrong, and the reasons are worth being specific about because they're the kind of thing you only learn by running Postgres at scale.
+Fewer rows. Looks tighter. But Postgres handles many small rows well and a few ever-growing rows badly, and every common token turns into one of those ever-growing rows.
 
 1. **Updates become read-modify-write.** Every new message containing "renew" has to read the row, append a UUID to the array, and write it back. Postgres has no atomic "append to array", you're holding a row lock, and concurrent inserts contend.
 
@@ -108,7 +104,7 @@ Fewer rows. Looks tighter. It's also wrong, and the reasons are worth being spec
 
 5. **Multi-word search becomes array intersection in SQL.** Slow, painful, no clean index path.
 
-One row per (token, message_id) pair gives me a B-tree where the primary key is `(token_hmac, message_id)`. Inserts are append-only and never contend. Multi-word AND becomes a bitmap index union across N seeks, then a `HAVING COUNT(DISTINCT token_hmac) = N` to enforce the AND. Postgres handles this access pattern well; it's what GIN indexes do internally.
+One row per `(token, message_id)` pair gives me a B-tree where the primary key is `(token_hmac, message_id)`. Inserts are append-only and never contend. Multi-word AND becomes a bitmap index union across N seeks, then a `HAVING COUNT(DISTINCT token_hmac) = N` to enforce the AND. Postgres handles this access pattern well; it's what GIN indexes do internally.
 
 ## Prefix search via n-grams
 
