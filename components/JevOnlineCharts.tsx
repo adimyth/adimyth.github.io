@@ -158,45 +158,6 @@ const GAP: { key: Key; right: number; wrong: number; auroc: number }[] = [
   { key: "llm", right: 0.99, wrong: 0.96, auroc: 0.72 },
 ];
 
-function ScoreRightWrongChart() {
-  const h = 210;
-  const m = { top: 24, right: 40, bottom: 40, left: 140 };
-  const xMin = 0.6, xMax = 1.0;
-  const x = (v: number) => m.left + ((v - xMin) / (xMax - xMin)) * (W - m.left - m.right);
-  const rowH = (h - m.top - m.bottom) / GAP.length;
-  return (
-    <figure className="quant-chart">
-      <figcaption>
-        <span>Average &quot;correct&quot; score, when the agent was right and when it was wrong</span>
-        <small>Filled dot: the 268 right answers. Open dot: the 17 wrong answers. A judge that can tell them apart has its dots far apart.</small>
-      </figcaption>
-      <svg viewBox={`0 0 ${W} ${h}`} role="img" aria-label="Average correct score on right versus wrong answers, four judges">
-        {[0.6, 0.7, 0.8, 0.9, 1.0].map((tk) => (
-          <g key={tk}>
-            <line x1={x(tk)} x2={x(tk)} y1={m.top - 6} y2={h - m.bottom} className="quant-grid-line" />
-            <text x={x(tk)} y={h - m.bottom + 17} textAnchor="middle" className="quant-axis-label">{tk.toFixed(1)}</text>
-          </g>
-        ))}
-        <text x={(m.left + W - m.right) / 2} y={h - 6} textAnchor="middle" className="quant-axis-title">average &quot;correct&quot; score, 0 to 1</text>
-        {GAP.map((d, i) => {
-          const y = m.top + i * rowH + rowH / 2;
-          const color = SERIES[d.key].color;
-          return (
-            <g key={d.key}>
-              <text x={m.left - 12} y={y + 4} textAnchor="end" className="quant-axis-label" style={{ fontWeight: 600 }}>{SERIES[d.key].label}</text>
-              <line x1={x(d.wrong)} x2={x(d.right)} y1={y} y2={y} stroke={color} strokeWidth={3} opacity={0.5} />
-              <circle cx={x(d.wrong)} cy={y} r={5.5} fill="var(--surface)" stroke={color} strokeWidth={2.5} />
-              <circle cx={x(d.right)} cy={y} r={5.5} fill={color} className="quant-point" />
-              <text x={x(d.wrong) - 10} y={y + 4} textAnchor="end" className="quant-point-label" style={{ fill: color }}>{d.wrong.toFixed(2)}</text>
-              <text x={x(d.right) + 10} y={y + 4} className="quant-point-label" style={{ fill: color }}>{d.right.toFixed(2)}</text>
-            </g>
-          );
-        })}
-      </svg>
-    </figure>
-  );
-}
-
 function BarsChart({ title, sub, max, values, fmt }: { title: string; sub: string; max: number; values: { key: Key; v: number }[]; fmt: (v: number) => string }) {
   return (
     <figure className="quant-chart">
@@ -219,13 +180,13 @@ function BarsChart({ title, sub, max, values, fmt }: { title: string; sub: strin
   );
 }
 
-function ScoreDropChart() {
+function WrongScoreChart() {
   return (
     <BarsChart
-      title="How far the score drops when the agent is wrong"
-      sub="Average score on right answers minus average score on wrong answers. Bigger is better: the judge reacts to failures."
-      max={0.25}
-      values={GAP.map((d) => ({ key: d.key, v: d.right - d.wrong }))}
+      title="What score each judge gave to the 17 wrong answers"
+      sub="Average &quot;correct&quot; score on answers that were in fact wrong. Lower is better. 1.0 means the judge was fooled every time."
+      max={1}
+      values={[...GAP].sort((a, b) => a.wrong - b.wrong).map((d) => ({ key: d.key, v: d.wrong }))}
       fmt={(v) => v.toFixed(2)}
     />
   );
@@ -244,8 +205,7 @@ function AurocChart() {
 }
 
 export function JevLagChart() { return <LagChart />; }
-export function JevScoreRightWrongChart() { return <ScoreRightWrongChart />; }
-export function JevScoreDropChart() { return <ScoreDropChart />; }
+export function JevWrongScoreChart() { return <WrongScoreChart />; }
 export function JevAurocChart() { return <AurocChart />; }
 export function JevDirectLatencyChart() { return <DirectLatencyChart />; }
 export function JevCostChart() { return <CostChart />; }
