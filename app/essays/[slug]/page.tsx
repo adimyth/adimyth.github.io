@@ -13,7 +13,7 @@ import EssayVideo from "@/components/EssayVideo";
 import LinkPreview from "@/components/LinkPreview";
 import { QuantizationGenerationChart, QuantizationGptqAblationChart, QuantizationMmluChart, QuantizationPerplexityChart, QuantizationSizeChart, QuantizationTradeoffChart } from "@/components/QuantizationCharts";
 import { SpecKSweepChart, SpecWorkloadChart } from "@/components/SpeculativeDecodingCharts";
-import { JevCostChart, JevDirectLatencyChart, JevLagChart } from "@/components/JevOnlineCharts";
+import { JevCostChart, JevDirectLatencyChart, JevLagChart, JevScoreGapChart } from "@/components/JevOnlineCharts";
 import RecommendationList, { RecommendationPath, RecommendationStart } from "@/components/RecommendationList";
 import ClaudeHandoff from "@/components/ClaudeHandoff";
 import Callout from "@/components/Callout";
@@ -209,7 +209,7 @@ export default async function EssayPage({ params }: Props) {
         <div id="essay-content" className="prose-essay">
           <MDXRemote
             source={content}
-            components={{ img: EssayImage, pre: EssayCodeBlock, table: EssayTable, EssayVideo, LinkPreview, QuantizationSizeChart, QuantizationPerplexityChart, QuantizationMmluChart, QuantizationGenerationChart, QuantizationTradeoffChart, QuantizationGptqAblationChart, SpecKSweepChart, SpecWorkloadChart, JevCostChart, JevDirectLatencyChart, JevLagChart, RecommendationList, RecommendationStart, RecommendationPath, Callout, Figure: EssayFigure, Summary: SectionSummary, TableNote, h2: EssayHeading }}
+            components={{ img: EssayImage, pre: EssayCodeBlock, table: EssayTable, EssayVideo, LinkPreview, QuantizationSizeChart, QuantizationPerplexityChart, QuantizationMmluChart, QuantizationGenerationChart, QuantizationTradeoffChart, QuantizationGptqAblationChart, SpecKSweepChart, SpecWorkloadChart, JevCostChart, JevDirectLatencyChart, JevLagChart, JevScoreGapChart, RecommendationList, RecommendationStart, RecommendationPath, Callout, Figure: EssayFigure, Summary: SectionSummary, TableNote, h2: EssayHeading }}
             options={{
               mdxOptions: {
                 remarkPlugins: [remarkGfm, remarkUnwrapImages],

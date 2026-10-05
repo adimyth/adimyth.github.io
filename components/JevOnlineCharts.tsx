@@ -85,9 +85,6 @@ function LagChart() {
         <text x={x(LAG.llm[10]) + 8} y={y(0.5) + 16} className="quant-point-label" style={{ fill: SERIES.llm.color }}>p50 80s</text>
         <Legend keys={keys} xRight={W - m.right} yTop={h - m.bottom - 18 * keys.length - 2} />
       </svg>
-      <p className="quant-chart-note">
-        Dots mark the median. Jev p95 98s, gpt-5.6-luna p95 108s. The judge itself accounts for 0.4s and 2s of that; the rest is the evaluator queue.
-      </p>
     </figure>
   );
 }
@@ -127,9 +124,6 @@ function DirectLatencyChart() {
         <text x={x(DIRECT.llm[10]) + 10} y={y(0.5) + 16} className="quant-point-label" style={{ fill: SERIES.llm.color }}>2.1s</text>
         <Legend keys={keys} xRight={W - m.right} yTop={h - m.bottom - 18 * keys.length - 2} />
       </svg>
-      <p className="quant-chart-note">
-        Dots mark the median. p95: Jev 0.75s, Perplexity 1.24s, gpt-6-luna 3.5s, gpt-5.6-luna 3.4s. gpt-6-luna and gpt-5.6-luna overlap.
-      </p>
     </figure>
   );
 }
@@ -153,13 +147,59 @@ function CostChart() {
           </div>
         ))}
       </div>
-      <p className="quant-chart-note">
-        The agent run itself cost $3.77 per 1K traces. Perplexity bills the state once per question, which is why its 47K tokens cost what gpt-5.6-luna does.
-      </p>
+    </figure>
+  );
+}
+
+const GAP: { key: Key; right: number; wrong: number; auroc: number }[] = [
+  { key: "jev", right: 0.87, wrong: 0.67, auroc: 0.83 },
+  { key: "pplx", right: 0.97, wrong: 0.86, auroc: 0.9 },
+  { key: "luna6", right: 1.0, wrong: 0.91, auroc: 0.74 },
+  { key: "llm", right: 0.99, wrong: 0.96, auroc: 0.72 },
+];
+
+function ScoreGapChart() {
+  const h = 220;
+  const m = { top: 30, right: 110, bottom: 40, left: 140 };
+  const xMin = 0.6, xMax = 1.0;
+  const x = (v: number) => m.left + ((v - xMin) / (xMax - xMin)) * (W - m.left - m.right);
+  const rowH = (h - m.top - m.bottom) / GAP.length;
+  return (
+    <figure className="quant-chart">
+      <figcaption>
+        <span>How far each judge&apos;s score falls when the agent is wrong</span>
+        <small>Average reference-free &quot;correct&quot; score on the 268 right answers (filled dot) and the 17 wrong ones (open dot)</small>
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${h}`} role="img" aria-label="Average correct score on right versus wrong answers, four judges">
+        {[0.6, 0.7, 0.8, 0.9, 1.0].map((tk) => (
+          <g key={tk}>
+            <line x1={x(tk)} x2={x(tk)} y1={m.top - 6} y2={h - m.bottom} className="quant-grid-line" />
+            <text x={x(tk)} y={h - m.bottom + 17} textAnchor="middle" className="quant-axis-label">{tk.toFixed(1)}</text>
+          </g>
+        ))}
+        <text x={(m.left + W - m.right) / 2} y={h - 6} textAnchor="middle" className="quant-axis-title">average &quot;correct&quot; score</text>
+        <text x={W - m.right + 12} y={m.top - 12} className="quant-axis-label" style={{ fontWeight: 600 }}>gap</text>
+        <text x={W - 8} y={m.top - 12} textAnchor="end" className="quant-axis-label" style={{ fontWeight: 600 }}>AUROC</text>
+        {GAP.map((d, i) => {
+          const y = m.top + i * rowH + rowH / 2;
+          const color = SERIES[d.key].color;
+          return (
+            <g key={d.key}>
+              <text x={m.left - 12} y={y + 4} textAnchor="end" className="quant-axis-label" style={{ fontWeight: 600 }}>{SERIES[d.key].label}</text>
+              <line x1={x(d.wrong)} x2={x(d.right)} y1={y} y2={y} stroke={color} strokeWidth={3} opacity={0.5} />
+              <circle cx={x(d.wrong)} cy={y} r={5.5} fill="var(--surface)" stroke={color} strokeWidth={2.5} />
+              <circle cx={x(d.right)} cy={y} r={5.5} fill={color} className="quant-point" />
+              <text x={W - m.right + 12} y={y + 4} className="quant-point-label" style={{ fill: color }}>{(d.right - d.wrong).toFixed(2)}</text>
+              <text x={W - 8} y={y + 4} textAnchor="end" className="quant-axis-label">{d.auroc.toFixed(2)}</text>
+            </g>
+          );
+        })}
+      </svg>
     </figure>
   );
 }
 
 export function JevLagChart() { return <LagChart />; }
+export function JevScoreGapChart() { return <ScoreGapChart />; }
 export function JevDirectLatencyChart() { return <DirectLatencyChart />; }
 export function JevCostChart() { return <CostChart />; }
