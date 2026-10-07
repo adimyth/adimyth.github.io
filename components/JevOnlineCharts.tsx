@@ -11,6 +11,7 @@ const LAG = {
 const DIRECT = {
   jev: [0.34, 0.36, 0.37, 0.37, 0.38, 0.39, 0.39, 0.4, 0.4, 0.41, 0.42, 0.42, 0.43, 0.44, 0.45, 0.47, 0.48, 0.51, 0.56, 0.75, 1.76],
   pplx: [0.41, 0.46, 0.48, 0.51, 0.53, 0.56, 0.58, 0.6, 0.63, 0.65, 0.67, 0.69, 0.71, 0.75, 0.81, 0.84, 0.91, 0.97, 1.08, 1.24, 2.44],
+  oai: [0.39, 0.4, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.49, 0.51, 0.52, 0.55, 0.57, 0.59, 0.63, 0.67, 0.71, 0.77, 0.86, 0.99, 4.56],
   luna6: [1.57, 1.74, 1.78, 1.83, 1.88, 1.93, 1.98, 2.04, 2.09, 2.15, 2.2, 2.25, 2.31, 2.36, 2.42, 2.48, 2.63, 2.77, 3.06, 3.55, 6.54],
   llm: [1.37, 1.67, 1.74, 1.8, 1.84, 1.87, 1.9, 1.93, 1.99, 2.04, 2.09, 2.16, 2.19, 2.26, 2.33, 2.46, 2.64, 2.79, 3.0, 3.41, 6.86],
 };
@@ -18,6 +19,7 @@ const DIRECT = {
 const SERIES = {
   jev: { label: "Jev", color: "#4f6d8f" },
   pplx: { label: "Perplexity Decisions", color: "#2f7375" },
+  oai: { label: "OpenAI Decisions", color: "#6b5b8f" },
   luna6: { label: "gpt-6-luna", color: "#8a7444" },
   llm: { label: "gpt-5.6-luna", color: "#b65c45" },
 } as const;
@@ -26,6 +28,7 @@ type Key = keyof typeof SERIES;
 
 const COSTS: { key: Key; perTrace: number; tokens: string }[] = [
   { key: "jev", perTrace: 0.00042, tokens: "10K tokens billed" },
+  { key: "oai", perTrace: 0.00094, tokens: "9.4K tokens billed, price assumed" },
   { key: "luna6", perTrace: 0.00095, tokens: "9K tokens billed" },
   { key: "pplx", perTrace: 0.00189, tokens: "47K tokens billed" },
   { key: "llm", perTrace: 0.00191, tokens: "9K tokens billed" },
@@ -95,7 +98,7 @@ function DirectLatencyChart() {
   const lmin = Math.log10(0.3), lmax = Math.log10(7);
   const x = (v: number) => m.left + ((Math.log10(v) - lmin) / (lmax - lmin)) * (W - m.left - m.right);
   const y = (p: number) => h - m.bottom - p * (h - m.top - m.bottom);
-  const keys = ["jev", "pplx", "luna6", "llm"] as const;
+  const keys = ["jev", "oai", "pplx", "luna6", "llm"] as const;
   return (
     <figure className="quant-chart">
       <figcaption>
@@ -154,6 +157,7 @@ function CostChart() {
 const GAP: { key: Key; right: number; wrong: number; auroc: number }[] = [
   { key: "jev", right: 0.87, wrong: 0.67, auroc: 0.83 },
   { key: "pplx", right: 0.97, wrong: 0.86, auroc: 0.9 },
+  { key: "oai", right: 0.98, wrong: 0.85, auroc: 0.8 },
   { key: "luna6", right: 1.0, wrong: 0.91, auroc: 0.74 },
   { key: "llm", right: 0.99, wrong: 0.96, auroc: 0.72 },
 ];
