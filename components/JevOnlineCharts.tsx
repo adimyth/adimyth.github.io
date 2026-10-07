@@ -28,7 +28,7 @@ type Key = keyof typeof SERIES;
 
 const COSTS: { key: Key; perTrace: number; tokens: string }[] = [
   { key: "jev", perTrace: 0.00042, tokens: "10K tokens billed" },
-  { key: "oai", perTrace: 0.00094, tokens: "9.4K tokens billed, price assumed" },
+  { key: "oai", perTrace: 0.00094, tokens: "9.4K tokens billed" },
   { key: "luna6", perTrace: 0.00095, tokens: "9K tokens billed" },
   { key: "pplx", perTrace: 0.00189, tokens: "47K tokens billed" },
   { key: "llm", perTrace: 0.00191, tokens: "9K tokens billed" },
