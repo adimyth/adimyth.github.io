@@ -182,7 +182,7 @@ TamilEOT and Pipecat's test set are other projects' published benchmarks, so I a
 
 I also tested the models on recordings from a sales-training product, where trainees rehearse a sales pitch by talking to an AI voice agent. Each session is one recording with both voices mixed together.
 
-I separated the trainee's voice from the agent's, cut a clip at every trainee pause of 200 ms or more, and had Gemini label each clip the same way as the public data. That left 1,207 sessions in ten languages. The 12,710 test clips come from sessions held out of all training. The recordings are private, so I publish only aggregate numbers.
+I separated the trainee's voice from the agent's and cut a clip at every trainee pause of 200 ms or more. That left 1,207 sessions in ten languages. The 12,710 test clips come from sessions held out of all training. The recordings are private, so I publish only aggregate numbers.
 
 ![Accuracy per language on 12,710 sales-training clips for Indic Smart Turn base int8, before fine-tuning, against Smart Turn v3.2 int8. Indic Smart Turn is ahead in every language, by 7.6 points on English up to 16.8 points on Tamil. The axis starts at 50%.](/images/indic-smart-turn-sales-calls-base-int8.svg)
 
@@ -206,7 +206,7 @@ I then fine-tuned the base model on sales-training clips from sessions outside t
 | Sales-training calls, 12,710 clips | 77.1% / AUC 0.859 | 79.4% / AUC 0.875 |
 | Public test, 20,431 clips | 89.9% / AUC 0.955 | 89.8% / AUC 0.958 |
 
-The fine-tuned model gains 2.3 points on the sales-training calls and holds level on the public test, where it is ahead of the earlier version in eight of twelve languages and within a point behind in the other four. The gain on those calls comes from the same kind of audio, with the same labeller, as the tuning data. It shows the model fitting this product's calls better and says little about other products.
+The fine-tuned model gains 2.3 points on the sales-training calls and holds level on the public test, where it is ahead of the earlier version in eight of twelve languages and within a point behind in the other four. The gain on those calls comes from the same kind of audio as the tuning data. It shows the model fitting this product's calls better and says little about other products.
 
 ## Try it in your voice agent
 
