@@ -27,6 +27,12 @@ export const profile = {
 
 export const recentProjects = [
   {
+    name: "Indic Smart Turn",
+    description:
+      "End-of-turn detection for voice agents in English and 11 Indian languages, built on Pipecat's Smart Turn. It runs on one CPU core and beats Smart Turn v3.2 by 12 to 22 points on the eight Indian languages that v3.2 has no training data for.",
+    url: "https://github.com/adimyth/indic-smart-turn",
+  },
+  {
     name: "Retold",
     description:
       "A local, provider-neutral memory layer for AI agents, with evidenced records, hybrid retrieval, and a usefulness judge that admits a record only if it would change the answer.",
@@ -49,12 +55,6 @@ export const recentProjects = [
     description:
       "A headless bot joins a Daily room, encodes each participant in real time, and composes an MP4 that switches layout as people join and leave.",
     url: "https://github.com/adimyth/self-hosted-video-recorder",
-  },
-  {
-    name: "AI Contract Review",
-    description:
-      "Extracts clauses against a playbook, then streams deviations, suggested redlines, a risk score, and a recommended action.",
-    url: "https://github.com/adimyth/ai-contract-review",
   },
   {
     name: "Async Job Processing",
