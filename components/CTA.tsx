@@ -10,7 +10,8 @@ export default function CTA() {
           Let&apos;s work together.
         </h2>
         <p className="text-base text-ink-soft mb-7 max-w-lg leading-7">
-          I&apos;m open to full-time roles, contracts, and thoughtful conversations.
+          I am open to thoughtful and interesting conversations. If you&apos;re
+          building something interesting, I&apos;d love to hear about it.
         </p>
 
         <a
