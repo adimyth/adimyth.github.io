@@ -34,9 +34,9 @@ Smart Turn v3.2 lists 23 supported languages. Hindi, Marathi and Bengali are the
 
 On the real Indian phone calls in my test set, Smart Turn v3.2 gets 64 to 75% of pauses right in those eight absent languages. On English it gets 94% right. The gap matters to anyone building a voice agent for Indic languages, because a turn detector that is wrong on a quarter to a third of pauses interrupts people several times in a single call.
 
-So I built Indic Smart Turn, and I am releasing it as open source. It covers English and eleven Indian languages: Hindi, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Punjabi, Odia and Assamese. On a public test set of 20,431 clips, the recommended model gets 89.8% of pauses right, against 81.9% for Smart Turn v3.2, and it is ahead on every Indian language. It takes the same input as Smart Turn v3, so it works in Pipecat with a one-line change. The models, the 50,421-clip dataset and the code that trained and scored them are all public.
+So I built Indic Smart Turn, and I am releasing it as open source. It covers English and eleven Indian languages: Hindi, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Punjabi, Odia and Assamese. On a public test set of 20,431 clips, Indic Smart Turn base int8 gets 89.8% of pauses right, against 81.9% for Smart Turn v3.2, and it is ahead on every Indian language. It takes the same input as Smart Turn v3, so it works in Pipecat with a one-line change. The models, the 50,421-clip dataset and the code that trained and scored them are all public.
 
-<LinkPreview href="https://github.com/adimyth/indic-smart-turn" title="adimyth/indic-smart-turn" description="Training and evaluation code, reports, charts and a stage-by-stage record of how the model was built." />
+<LinkPreview href="https://github.com/adimyth/indic-smart-turn" title="adimyth/indic-smart-turn" description="Training and evaluation code, with the result charts." />
 
 <LinkPreview href="https://huggingface.co/adimyth/indic-smart-turn" title="adimyth/indic-smart-turn on Hugging Face" description="The models, with the model card and usage code." />
 
@@ -129,9 +129,7 @@ Tiny int8 matches Smart Turn v3.2's CPU model on size and speed. The model runs 
 
 The test set holds 20,431 clips that no model trained on. It combines the IndicVoices test split for all eleven languages, TamilEOT's test set, and Pipecat's own test set for English, Hindi, Marathi and Bengali.
 
-### The recommended model
-
-Across the whole test set, the recommended model, base int8 after the fine-tuning described below, gets 89.8% of pauses right. Smart Turn v3.2's CPU model gets 81.9%. Indic Smart Turn is ahead on every Indian language, and its AUC is higher in all twelve languages, English included.
+Across the whole test set, Indic Smart Turn base int8 gets 89.8% of pauses right. Smart Turn v3.2's CPU model gets 81.9%. Indic Smart Turn is ahead on every Indian language, and its AUC is higher in all twelve languages, English included.
 
 <div className="wide-table">
 
@@ -164,19 +162,18 @@ The other Indic Smart Turn models also beat Smart Turn v3.2's CPU model on every
 | Indic Smart Turn model | Gain on the Indian languages | Gain on English |
 |---|---:|---:|
 | tiny, `fp32` | +4.0 to +17.6 | −0.6 |
-| base, `int8`, before fine-tuning | +5.0 to +19.5 | +0.5 |
-| base, `fp32`, after fine-tuning | +5.1 to +21.6 | −0.3 |
+| base, `fp32` | +5.1 to +21.6 | −0.3 |
 
 <TableNote label="How to read it">Gains are in accuracy points over Smart Turn v3.2's CPU model, scored on the same machine as the table above. Tiny int8 was scored on a different machine, so it is not in this table. The [README](https://github.com/adimyth/indic-smart-turn#results) has per-language charts for every model and an [interactive version](https://github.com/adimyth/indic-smart-turn/blob/main/docs/charts.html).</TableNote>
 
-<TableNote label="A side finding">int8 results depend on the CPU, and fp32 results do not. On the same clips with the same code, Smart Turn v3.2's int8 model scored 3.7 points lower on Kannada on an Apple Silicon MacBook than on an x86 cloud server, while every fp32 model gave identical numbers on both. ONNX Runtime uses different int8 kernels on x86 and Arm, so a quantised model behaves slightly differently on each. Statically quantised models moved by up to 3.7 points per language, in either direction, and Indic Smart Turn base int8 by about 1 point. Benchmark an int8 model on the hardware you deploy it on, and use fp32 where it is fast enough, as it is on Apple Silicon and GPUs. [The measurements](https://github.com/adimyth/indic-smart-turn/blob/main/reports/int8_cpu_dependence.md) are in the repository.</TableNote>
+<TableNote label="A side finding">int8 results depend on the CPU, and fp32 results do not. On the same clips with the same code, Smart Turn v3.2's int8 model scored 3.7 points lower on Kannada on an Apple Silicon MacBook than on an x86 cloud server, while every fp32 model gave identical numbers on both. ONNX Runtime uses different int8 kernels on x86 and Arm, so a quantised model behaves slightly differently on each. Statically quantised models moved by up to 3.7 points per language, in either direction. Benchmark an int8 model on the hardware you deploy it on, and use fp32 where it is fast enough, as it is on Apple Silicon and GPUs. [The measurements](https://github.com/adimyth/indic-smart-turn/blob/main/docs/int8_cpu_dependence.md) are in the repository.</TableNote>
 
 ### Two external test sets
 
 TamilEOT and Pipecat's test set are other projects' published benchmarks, so I also compared the models on each of them on its own. Indic Smart Turn holds up on both.
 
-- **TamilEOT**, 4,168 Tamil clips labelled by people. The recommended model scores 86.2%, against about 70% for Smart Turn v3.2 and 86.1% for the TamilEOT paper's own model, a whisper-base trained only on Tamil. One model covering twelve languages matches a model built for Tamil alone.
-- **Pipecat's own test set** for English, Hindi, Marathi and Bengali, 10,878 clips. The recommended model scores 92.7%, against 92.1% for Smart Turn v3.2's CPU model. Adding eleven Indian languages cost nothing on the languages Smart Turn v3.2 already handled.
+- **TamilEOT**, 4,168 Tamil clips labelled by people. Indic Smart Turn base int8 scores 86.2%, against about 70% for Smart Turn v3.2 and 86.1% for the TamilEOT paper's own model, a whisper-base trained only on Tamil. One model covering twelve languages matches a model built for Tamil alone.
+- **Pipecat's own test set** for English, Hindi, Marathi and Bengali, 10,878 clips. Indic Smart Turn base int8 scores 92.7%, against 92.1% for Smart Turn v3.2's CPU model. Adding eleven Indian languages cost nothing on the languages Smart Turn v3.2 already handled.
 
 ## Testing on sales-training calls
 
@@ -201,12 +198,12 @@ All three reply to a finished turn about equally often. The difference is in unf
 
 I then fine-tuned the base model on sales-training clips from sessions outside the test set, mixed with public clips so it would keep what it learned there.
 
-| Test set | Before fine-tuning | After fine-tuning, recommended |
+| Test set | Before fine-tuning | After fine-tuning |
 |---|---|---|
 | Sales-training calls, 12,710 clips | 77.1% / AUC 0.859 | 79.4% / AUC 0.875 |
 | Public test, 20,431 clips | 89.9% / AUC 0.955 | 89.8% / AUC 0.958 |
 
-The fine-tuned model gains 2.3 points on the sales-training calls and holds level on the public test, where it is ahead of the earlier version in eight of twelve languages and within a point behind in the other four. The gain on those calls comes from the same kind of audio as the tuning data. It shows the model fitting this product's calls better and says little about other products.
+The fine-tuned model gains 2.3 points on the sales-training calls and holds level on the public test, where it is ahead of the model before fine-tuning in eight of twelve languages and within a point behind in the other four. The gain on those calls comes from the same kind of audio as the tuning data. It shows the model fitting this product's calls better and says little about other products.
 
 ## Try it in your voice agent
 
