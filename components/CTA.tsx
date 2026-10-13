@@ -7,7 +7,7 @@ export default function CTA() {
     <section className="pt-8 pb-16 px-6">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-semibold tracking-tight text-ink leading-tight mb-4">
-          Let&apos;s work together.
+          Let&apos;s talk.
         </h2>
         <p className="text-base text-ink-soft mb-7 max-w-lg leading-7">
           I am open to thoughtful conversations. If you&apos;re
