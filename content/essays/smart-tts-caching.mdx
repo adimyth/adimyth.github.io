@@ -1,0 +1,215 @@
+---
+title: "Introducing Smart TTS Caching: Replaying What a Voice Agent Already Said"
+description: "Voice agents say the same sentences on every call, and the TTS provider synthesises and bills each repeat. I built a cache that plays those repeats from stored audio in about 8 ms, and goes back to the provider when a name, number, negation or question has changed."
+date: "2026-11-04"
+readTime: "12 min read"
+featured: true
+draft: true
+---
+
+A voice agent speaks by sending text to a text-to-speech (TTS) provider, one sentence at a time, and playing the audio that comes back. Each request costs money, because the provider bills per character. It also costs time, because the caller hears nothing until the first audio arrives. In my tests that wait ran from 131 ms to 2.4 s, depending on the provider and how the agent connects to it.
+
+Agents also repeat themselves. They say the same greeting, the same recording disclosure and the same "Is there anything else I can help you with today?" to every caller, in the same voice. The provider synthesises and bills each repeat as if it were new.
+
+I built Smart TTS Caching to reuse those repeats. It stores the audio of each sentence the first time the agent says it. When the agent is about to say that sentence again, in that voice, to any caller, the cache plays the stored clip and skips the provider. It works with [Pipecat](https://github.com/pipecat-ai/pipecat) and wraps the TTS service you already use.
+
+I tested it on ElevenLabs in English and Sarvam in Hindi:
+
+- **Speed.** A turn that opens on a cached sentence starts playing in 7.7 to 8.7 ms at the median, against 170 to 177 ms from the provider.
+- **Cost.** On test traffic where half the sentences repeat something said earlier, the characters sent to the provider fell by 36 to 39%.
+- **Correctness.** The default configuration played no wrong audio across 5,308 requests it had to refuse.
+- **Failing open.** If the cache is down or slow, the lookup times out after 20 ms and the sentence goes to the provider, so the call carries on as if the cache were not there.
+
+Your saving depends on how often your agent repeats itself, and the package includes a command that estimates it from your own transcripts.
+
+<LinkPreview href="https://github.com/adimyth/smart-tts-caching" title="adimyth/smart-tts-caching" description="The cache, the Pipecat adapter, the demo and the evaluation." />
+
+<EssayVideo
+  src="/videos/smart-tts-caching-en.mp4"
+  poster="/videos/smart-tts-caching-en-poster.jpg"
+  caption="The launch video. The first call fills the cache. In the second call, a badge on each sentence shows whether it played from the cache or went to the provider, and why. The demo switches on Level C, which is off by default and covered below."
+/>
+
+## How the cache works
+
+The cache works on sentences. A provider synthesises one sentence in one request, so a stored clip carries its own intonation. A sentence is also short enough to recur across callers, and a whole turn almost never does.
+
+For each sentence the language model writes, the cache looks for a stored clip. If it finds one, that is a hit: the clip plays in the sentence's place and the provider never sees the request. If it finds none, that is a miss: the provider synthesises the sentence as usual, and the cache stores the audio for next time.
+
+All calls share one Redis store. Each process also loads the most-used clips into memory when it starts, so a new container can hit from its first sentence.
+
+Three rules decide what stays in the store and what happens when it fails:
+
+- **Clips must be whole.** An interruption discards every partial clip from that turn, and the cache rejects a clip whose length or silence does not fit its text.
+- **Clips expire unless they repeat.** A new clip lives 48 hours. Its first hit extends that to 30 days, and each later hit restarts the 30 days. A sentence said once disappears after two days, and a sentence that keeps playing stays.
+- **Failures fall back to the provider.** Every store call has a 20 ms deadline. If Redis is slow, failing or unreachable, the sentence goes to the provider and no cache error reaches the call.
+
+## What counts as the same sentence
+
+A wrong clip is worse than no cache, because the caller then hears a wrong fact. Take this sentence:
+
+~~~text
+Your refund of ₹2,349 will reach you by Thursday.
+~~~
+
+The usual way to find similar sentences is an embedding model, which turns each sentence into a list of numbers so that sentences with similar meanings sit close together. I embedded this sentence and each variant below with `multilingual-e5-small`, then calculated a similarity score for each pair:
+
+| Compared with | Similarity | Should it play the stored clip? |
+|---|---:|---|
+| You will get your ₹2,349 refund by Thursday. | 0.995 | Yes, the meaning is the same. |
+| Your refund of **₹2,439** will reach you by Thursday. | 0.990 | No, the amount changed. |
+| Your refund of ₹2,349 will reach you by **Tuesday**. | 0.976 | No, the day changed. |
+| Your refund of ₹2,349 will **not** reach you by Thursday. | 0.963 | No, the meaning reversed. |
+| Is there anything else I can help you with today? | 0.796 | No, it is a different sentence. |
+
+The wrong amount scores within 0.005 of the true rewording. A threshold that keeps one and refuses the other would have to sit in that gap, with no margin for the next sentence. The cache decides another way. The voice has to match, and then the text has to pass one of three levels. The default configuration uses the first two.
+
+**The same voice.** The lookup key includes the provider, TTS model, voice, language, sample rate and audio settings. Change any of them and the old audio cannot play.
+
+**Level A, the same text.** The cache plays a stored clip when the sentence matches it exactly, ignoring differences a listener cannot hear, such as upper and lower case, extra spaces or markdown.
+
+**Level B, a near duplicate.** If Level A misses, the cache looks for a stored sentence with the same words, differing only in punctuation or in a leading or trailing filler word from a per-language list, such as "Okay". Any changed word blocks the match, and so does an added or removed question mark.
+
+**Level C, the same meaning.** If Levels A and B miss, this level looks for a stored rewording. The embedding model from the table above proposes the closest stored sentence. Two vetoes refuse it when a fact differs, such as a name, number or date, or when the only difference is one short stretch, such as an added "not". Then an entailment model, `mDeBERTa-v3-base`, reads both sentences and has to find that each implies the other.
+
+In the video above, Level C plays the stored "You will receive an SMS with the appointment details shortly." when the agent is about to say "The appointment details will be sent to you by SMS in a moment."
+
+I ran these pairs through the cache with its default settings:
+
+<div className="wide-table">
+
+| Stored clip | The agent is about to say | What plays |
+|---|---|---|
+| Thank you for calling City General Hospital. | Thank you for calling `**City General Hospital**`. | The stored clip, Level A. |
+| I have confirmed your appointment. | Okay, I have confirmed your appointment. | The stored clip, Level B. |
+| Please reach fifteen minutes early, and carry a photo ID. | Please reach fifteen minutes early and carry a photo ID. | The stored clip, Level B. |
+| Your appointment is on Friday at 10:30 AM. | Your appointment is on Thursday at 10:30 AM. | The provider. The day changed. |
+| Your refund of ₹2,349 will reach you by Thursday. | Your refund of ₹2,439 will reach you by Thursday. | The provider. The amount changed. |
+| Thanks, Alex. | Thanks, Sam. | The provider. The name changed. |
+| Your payment was successful. | Your payment was not successful. | The provider. The sentence is now negative. |
+| Your order is confirmed. | Your order is confirmed? | The provider. A question needs its own audio. |
+| Your order is confirmed. | Your order has been confirmed. | The provider. The wording changed. |
+
+</div>
+
+On a Level B or C hit the caller hears the stored sentence, and the transcript records what played. In the second row, the caller does not hear "Okay".
+
+## Results
+
+I tested two setups: ElevenLabs `eleven_flash_v2_5` in English and Sarvam `bulbul:v4-flash` in Hindi, both over websocket, with one voice each and Redis on the same machine. The [full report](https://github.com/adimyth/smart-tts-caching/blob/main/docs/evaluation/REPORT.md) has every number below.
+
+### Does it play the wrong audio?
+
+I stored a set of sentences, then asked for variants the cache has to refuse and variants it should play.
+
+<div className="wide-table">
+
+| Request | Should it replay? | Replayed from cache |
+|---|---|---:|
+| A sentence never said before | No | 0 of 840 |
+| A changed name, number, date or amount | No | 0 of 2,765 |
+| A sentence reworded to change its meaning | No | 0 of 861 |
+| A question offered a statement's audio | No | 0 of 842 |
+| A stored sentence in another voice, model, language, audio setting or tenant | No | 0 of 1,120 |
+| A trick request during a live call | No | 0 of 40 |
+| The same sentence again | Yes | 840 of 840 |
+| A filler word added or removed | Yes | 21 of 23 |
+| Only inner punctuation changed | Yes | 17 of 18 |
+
+</div>
+
+<TableNote label="How to read it">Counts combine English and Hindi. A zero out of at least 420 requests in each language puts the true rate below 0.72% at 95% confidence. The voice and settings row ran with every match level switched on, and the same requests with the settings unchanged replayed 1,041 of 1,120 times.</TableNote>
+
+In both languages, the default configuration refused every request it should refuse and played nearly every one it should play. An offline run across all 12 supported languages gave the same result for changed facts and reversed meanings.
+
+### How much faster is it?
+
+A caller feels the wait for the first sound of a turn, so I measured from the moment the turn's first sentence is ready. Later sentences wait for the one before them to finish playing, so their wait measures the queue ahead of them.
+
+| A turn's first sound | Median | 95th percentile |
+|---|---:|---:|
+| English, from ElevenLabs | 177 ms | 231 ms |
+| English, from the cache | 7.7 ms | 11.6 ms |
+| Hindi, from Sarvam | 170 ms | 188 ms |
+| Hindi, from the cache | 8.7 ms | 16.1 ms |
+
+A hit saves about 170 ms on the turn it lands on. A miss pays for the lookup before the sentence goes to the provider, a median of 0.8 ms in English and 1.4 ms in Hindi. Across a whole call the gain depends on how many turns open on a hit, which shows when you compare a run with no repeats against a run where one turn in three opened on a hit:
+
+| Wait for first sound, all turns | English | Hindi |
+|---|---:|---:|
+| Mean | 187 → 127 ms | 173 → 119 ms |
+| Median | 177 → 170 ms | 170 → 168 ms |
+| 95th percentile | 231 → 231 ms | 188 → 183 ms |
+
+<TableNote label="How to read it">Each number rests on 38 to 55 turns. I used only the turns that ran after a parallel cache-off run had finished, so both sides ran under the same load.</TableNote>
+
+The mean fell by 60 ms in English and 54 ms in Hindi, as expected when a third of turns start about 170 ms sooner. The median moves once more than half of turns open on a hit, as they do for an agent that opens most turns with a fixed line.
+
+Slower providers gain more. Across six Pipecat TTS services in English, Hindi and Tamil, the provider's first sound took 131 ms to 2.4 s on a home connection, and a hit took 1.4 to 8.3 ms.
+
+Redis ran on the test machine. In production, each miss, and each hit not served from process memory, adds one network round trip to Redis. `tts-cache ping` measures that round trip from a running container, and its 99th percentile should stay under 10 ms.
+
+### How much does it save?
+
+The saving depends on `r`, the share of sentences that repeat something said earlier. I tested two values of `r` on simulated traffic. The table shows the share of characters the cache served instead of the provider, and each range spans the 12 languages.
+
+| Levels | r = 0.25 | r = 0.5 |
+|---|---:|---:|
+| A | 15.4 to 16.9% | 29.9 to 31.3% |
+| A and B, the default | 19.9 to 21.5% | 38.7 to 40.2% |
+| A, B and C | 20.0 to 23.9% | 39.4 to 45.8% |
+
+With Levels A and B, the hit rate moves by under two points across the 12 languages, and Level B supplies about a fifth of the hits. Level C adds the most in English and Hindi, up to 5.6 points at r = 0.5. Live runs at r = 0.5 agreed with the default's numbers: provider characters fell from 11,419 to 7,015 in English, and from 12,070 to 7,791 in Hindi.
+
+### What happens when Redis fails?
+
+During one live run per language, I paused Redis for 5 s, then later shut it down and restarted it empty. No error reached the pipeline and no wrong audio played. Lookups gave up within 23 ms in English and 21.5 ms in Hindi, and those sentences went to the provider. Process memory still served 5 of the 8 English sentences during the pause. After the restart, hits returned as soon as the traffic repeated a sentence captured since: 3.6 s later in English and 21.6 s later in Hindi.
+
+## Limits
+
+- **Simulated traffic.** Every hit rate here comes from simulated traffic with a repeat rate I chose. `tts-cache replay` gives the number for your agent.
+- **How the joins sound.** Some providers, such as ElevenLabs with request stitching, shape a sentence using the one before it, and a cached clip lacks that context.
+- **Level C is experimental and off by default.** It adds about 3.2 GB of memory per process and 20 to 40 ms each time it runs.
+- **Filler words can carry meaning.** The English list includes "right", so asked for "Take the second lift and turn.", the cache plays a stored "Take the second lift and turn right."
+- **Providers.** It supports six services across OpenAI, ElevenLabs and Sarvam. Support for other providers will be added soon.
+
+## Try it
+
+The demo runs a live call on your machine.
+
+~~~bash
+git clone https://github.com/adimyth/smart-tts-caching.git
+cd smart-tts-caching
+./demo/quickstart.sh
+~~~
+
+Talk to Ananya, the appointment desk of a fictional hospital, then hang up, call again and say the same things. Each sentence Ananya repeats now shows a HIT badge. The first run downloads about 1.6 GB of models for semantic matching.
+
+For your own agent, start by estimating the hit rate from a log of what it has said:
+
+~~~bash
+tts-cache replay --log transcripts.jsonl --out replay.json
+~~~
+
+If the number justifies it, put the two processors around your TTS service:
+
+~~~python
+cache = TTSCache(
+    scope=scope_from_service(tts, language="hi-IN"),
+    store=TieredStore(MemoryStore(warm_start_bytes=4 << 20), RedisStore("redis://cache:6379/0"), deadline_ms=20),
+    policy=AllOf(DEFAULT_POLICY, SkipIfMatches([r"\d{4,}"])),  # never store account, card or ticket numbers
+)
+await cache.start()
+
+pipeline = Pipeline([
+    transport.input(), stt, context_aggregator.user(), llm,
+    TTSCacheRead(cache, tts=tts, text_filters=[MarkdownTextFilter()]),
+    tts,
+    TTSCacheWrite(cache, tts=tts),
+    transport.output(), context_aggregator.assistant(),
+])
+~~~
+
+To watch the hit rate on live traffic before serving any cached audio, use the `Shadow` policy, which stores clips and counts hits while still calling the provider for every sentence. The [README](https://github.com/adimyth/smart-tts-caching#installation) has the install command, the imports and the service set-up. The licence allows commercial use and asks you to credit the repository.
+
+If you run `tts-cache replay` on real transcripts, [open an issue](https://github.com/adimyth/smart-tts-caching/issues) with the hit rate you get.
