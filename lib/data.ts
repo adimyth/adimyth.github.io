@@ -27,6 +27,12 @@ export const profile = {
 
 export const recentProjects = [
   {
+    name: "Smart TTS Caching",
+    description:
+      "A sentence-level audio cache for Pipecat voice agents, shared across every call. Repeated sentences play in under 10 ms instead of going back to the TTS provider, and a changed name, number, negation, or question is never replayed.",
+    url: "https://github.com/adimyth/smart-tts-caching",
+  },
+  {
     name: "Indic Smart Turn",
     description:
       "End-of-turn detection for voice agents in English and 11 Indian languages, built on Pipecat's Smart Turn. It runs on one CPU core and beats Smart Turn v3.2 by 12 to 22 points on the eight Indian languages that v3.2 has no training data for.",
@@ -55,12 +61,6 @@ export const recentProjects = [
     description:
       "A headless bot joins a Daily room, encodes each participant in real time, and composes an MP4 that switches layout as people join and leave.",
     url: "https://github.com/adimyth/self-hosted-video-recorder",
-  },
-  {
-    name: "Async Job Processing",
-    description:
-      "Priority queues, retries with backoff, and a Postgres record for every job. If Redis dies, queued and started work is requeued on boot.",
-    url: "https://github.com/adimyth/async-job-processing",
   },
 ];
 

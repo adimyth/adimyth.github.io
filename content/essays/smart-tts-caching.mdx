@@ -1,10 +1,10 @@
 ---
 title: "Introducing Smart TTS Caching: Replaying What a Voice Agent Already Said"
 description: "Voice agents say the same sentences on every call, and the TTS provider synthesises and bills each repeat. I built a cache that plays those repeats from stored audio in about 8 ms, and goes back to the provider when a name, number, negation or question has changed."
-date: "2026-11-04"
+date: "2026-11-23"
 readTime: "12 min read"
 featured: true
-draft: true
+draft: false
 ---
 
 A voice agent speaks by sending text to a text-to-speech (TTS) provider, one sentence at a time, and playing the audio that comes back. Each request costs money, because the provider bills per character. It also costs time, because the caller hears nothing until the first audio arrives. In my tests that wait ran from 131 ms to 2.4 s, depending on the provider and how the agent connects to it.
@@ -96,7 +96,7 @@ On a Level B or C hit the caller hears the stored sentence, and the transcript r
 
 ## Results
 
-I tested two setups: ElevenLabs `eleven_flash_v2_5` in English and Sarvam `bulbul:v4-flash` in Hindi, both over websocket, with one voice each and Redis on the same machine. The [full report](https://github.com/adimyth/smart-tts-caching/blob/main/docs/evaluation/REPORT.md) has every number below.
+I tested two setups: ElevenLabs `eleven_flash_v2_5` in English and Sarvam `bulbul:v4-flash` in Hindi, both over websocket, with one voice each and Redis on the same machine. The repository's [README](https://github.com/adimyth/smart-tts-caching#results) and [evaluation report](https://github.com/adimyth/smart-tts-caching/blob/main/docs/evaluation/REPORT.md) have every number below.
 
 ### Does it play the wrong audio?
 
@@ -110,7 +110,7 @@ I stored a set of sentences, then asked for variants the cache has to refuse and
 | A changed name, number, date or amount | No | 0 of 2,765 |
 | A sentence reworded to change its meaning | No | 0 of 861 |
 | A question offered a statement's audio | No | 0 of 842 |
-| A stored sentence in another voice, model, language, audio setting or tenant | No | 0 of 1,120 |
+| A stored sentence in another voice, model, language, audio setting or tenant | No | 0 of 7,840 |
 | A trick request during a live call | No | 0 of 40 |
 | The same sentence again | Yes | 840 of 840 |
 | A filler word added or removed | Yes | 21 of 23 |
@@ -118,7 +118,7 @@ I stored a set of sentences, then asked for variants the cache has to refuse and
 
 </div>
 
-<TableNote label="How to read it">Counts combine English and Hindi. A zero out of at least 420 requests in each language puts the true rate below 0.72% at 95% confidence. The voice and settings row ran with every match level switched on, and the same requests with the settings unchanged replayed 1,041 of 1,120 times.</TableNote>
+<TableNote label="How to read it">Counts combine English and Hindi. A zero out of at least 420 requests in each language puts the true rate below 0.72% at 95% confidence. For the voice and settings row, I changed one of seven fields at a time, with 560 requests per field in each language and every match level switched on. With nothing changed, the same requests replayed 1,041 of 1,120 times.</TableNote>
 
 In both languages, the default configuration refused every request it should refuse and played nearly every one it should play. An offline run across all 12 supported languages gave the same result for changed facts and reversed meanings.
 
