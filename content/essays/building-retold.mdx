@@ -2,7 +2,7 @@
 title: "Building Retold: Agent Memory That Decides Before It Retrieves"
 description: "An earlier essay of mine found five agent memory systems returning records on turns that needed none. Retold decides before it searches. What it does, where it stands, and where I could use help."
 date: "2026-09-29"
-readTime: "5 min read"
+readTime: "8 min read"
 featured: true
 draft: false
 ---
@@ -66,6 +66,89 @@ The two kinds cover each other's blind spots. The planner only fires when a turn
 ### Where it stands
 
 I am designing the experiments for this now. They will measure both halves of the problem: whether Retold stays quiet when a turn needs nothing, and whether it fetches the right record when a turn needs one. I will share the numbers once they are done.
+
+## How memory works
+
+### What kinds of memory Retold writes?
+
+**Conversation Memory**
+
+The current conversation, held in the model's context window. The app and the model handle this, not Retold.
+
+**Long-term memory**
+
+Retold keeps four kinds of memory in one store.
+
+| Kind | What it holds | Example |
+| --- | --- | --- |
+| Facts and preferences | Things that stay true until they change | "The user prefers short answers." |
+| Events and decisions | Things that happened, with a date | "On March 2 the team moved the launch to March 10." |
+| Session summaries | A short account of one conversation, one per session | "Planned the launch. The user asked for shorter answers." |
+| Procedures | How to do a task, kept in versions | "When changing the embedding model, re-embed every record." |
+
+### When Retold writes memory?
+
+Retold writes memory at two moments: when the agent chooses to save something during the conversation, and once after the conversation ends.
+
+**Inline Processing:** During the conversation, the agent saves on purpose. The agent has a `memory_write` tool. When the user says "Keep answers short," the agent can save it right away.
+
+**Post Processing:** After the conversation, a background job saves anything else worth keeping. A separate model rereads the whole transcript and picks out facts, decisions and a short summary of the session.
+
+### What a memory looks like
+
+Each fact, event or procedure is a small, single statement that carries the user's exact words as proof. Example:
+
+| Part | Example |
+| --- | --- |
+| Statement | The user prefers short answers. |
+| Proof | "Keep answers short." (quoted from the transcript) |
+| Topic | this user + `answer_style` |
+| Belongs to | this user, readable only by agents granted access |
+| Source | the user said it, so it is trusted |
+
+Three rules decide what gets in:
+
+1. **No proof, no record.** If the quote can't be found in the transcript, an extracted item is thrown out, and an agent's save is downgraded to a guess.
+2. **A second model checks every extracted item** before it is saved. It can accept it, reject it, or narrow it.
+3. **Who said it sets the trust level.** Something the user said is confirmed. Something the agent concluded is a guess, and it expires after 30 days unless it comes up again.
+
+Retold doesn't use domain-specific categories. Proof and review are what keep noise out.
+
+### How Retold reads memory back
+
+Memory reaches the model in up to three ways. Only the first is on by default, so Retold doesn't add memory to every turn unless you turn that on.
+
+1. **The agent searches (default).** When the user asks "When's the launch again?", the agent calls its `memory_search` tool and gets back the March 10 record. A search took about 25 ms on 1,000 records and 75 ms on 50,000, measured on M4 Pro.
+2. **A short profile at the start (optional).** A few stable preferences, such as answer style, language or accessibility needs, are loaded once when the conversation begins. The profile holds at most 8 items and stays fixed for the whole conversation.
+3. **Draft first, then check (optional).** The model writes a draft answer without memory. Meanwhile a planner asks: "Is there something about this user that would change this answer?" If not, the draft is sent. If so, Retold searches for that missing fact, a judge checks whether any result really changes the draft, and only then does the model rewrite once.
+
+### How memory stays bounded?
+
+Retold limits growth mostly by updating records instead of adding new ones, and by letting guesses expire.
+
+1. **Repeats strengthen instead of duplicating.** If a new item says nearly the same thing as an existing record, Retold strengthens the existing record and adds nothing.
+2. **New facts replace old ones.** Each fact has a topic, such as "this user + answer style." When the user later says "Actually, I want detailed answers now," that record replaces "prefers short answers," and search stops returning the old one.
+3. **Things expire.** See the table below.
+4. **Reading back is capped, even as the store grows.** A search returns at most 8 records. The starting profile holds at most 8 items. Extraction keeps at most 20 items per conversation.
+
+| What | How long it lasts |
+| --- | --- |
+| An agent's guess | 30 days, unless it comes up again |
+| A session summary | 180 days |
+| Something the user said | Until it is replaced or deleted |
+
+Users and agents can also delete a memory with `memory_forget`.
+
+### At a glance
+
+| Question | How Retold answers it |
+| --- | --- |
+| What does it store? | Facts and preferences, dated events, session summaries and procedures. A few stable preferences can also load as a profile at the start of a conversation. |
+| When does it write? | The agent saves memories on purpose during the conversation. After it ends, a background job saves anything else worth keeping. |
+| What gets in? | Each memory is a single statement backed by the user's own words. A second model checks what the background job finds before it is saved. |
+| How does it read back? | The agent searches when it needs a memory. Two optional ways add more: a profile loaded at the start, and a draft-first check that adds memory only when it would change the answer. |
+| Where does the work run? | Searches and saves run inside the app while the user waits. The background job runs after the conversation ends. |
+| How does it stay small? | New facts replace old ones instead of piling up, and unconfirmed guesses expire. Each search returns at most 8 memories. Related memories are not merged yet. |
 
 ## Try it, break it, help build it
 
